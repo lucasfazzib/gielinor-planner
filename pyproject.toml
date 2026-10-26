@@ -36,5 +36,12 @@ src = ["src"]
 select = ["E", "F", "I", "B", "UP", "SIM", "PL", "RUF"]
 ignore = ["PLR2004", "PLR0913"]
 
+[tool.ruff.lint.flake8-bugbear]
+# typer declares CLI options as default values - that is the library's API, not a mutable-default bug
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/gp/cli.py" = ["PLR0917"]  # CLI commands mirror their flags one-to-one
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
