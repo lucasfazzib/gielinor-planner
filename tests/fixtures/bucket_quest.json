@@ -1,0 +1,44 @@
+[
+ {
+  "page_name": "Fight Arena",
+  "official_length": "Short",
+  "requirements": "The ability to defeat level 44, 63 and 137 enemies (all can be [[safespot]]ted)",
+  "official_difficulty": "Intermediate"
+ },
+ {
+  "page_name": "Waterfall Quest",
+  "official_length": "Short",
+  "requirements": "The ability to withstand and evade attacks from level 86 [[Fire Giant]]s and level 84 [[Moss Guardian]] without any equipment.",
+  "official_difficulty": "Intermediate"
+ },
+ {
+  "page_name": "The Grand Tree",
+  "official_length": "Medium",
+  "requirements": "* <span class=\"scp\" data-skill=\"Agility\" data-level=\"25\" style=\"position:relative;display:inline-block;height:1em;\">[[File:Agility icon.png|link=Agility|alt=Agility]] 25 [[Agility]]</span> <sup class=\"nowrap\">[<span title=\"This requirement is boostable\" style=\"cursor:help; text-decoration: underline dotted;\">boostable</span>]</sup> <sup class=\"nowrap\"><span>[</span><span title=\"This quest can be started without this requirement\" style=\"cursor:help; text-decoration: underline dotted;\">not required to start</span><span>]</span></sup>\n* The ability to defeat a level 172 [[Black demon (The Grand Tree)|Black demon]] (safespottable for Ranged and Magic or melee using a [[halberd]]).",
+  "official_difficulty": "Intermediate"
+ },
+ {
+  "page_name": "Observatory Quest",
+  "official_length": "Short",
+  "requirements": "None",
+  "official_difficulty": "Intermediate"
+ },
+ {
+  "page_name": "Monkey Madness I",
+  "official_length": "Long",
+  "requirements": "* Completion of the following quests:\n** [[The Grand Tree]]\n** [[Tree Gnome Village]]\n* The ability to defeat a level 195 [[Jungle Demon]]",
+  "official_difficulty": "Master"
+ },
+ {
+  "page_name": "Fairytale I - Growing Pains",
+  "official_length": "Medium",
+  "requirements": "*Completion of the following quests:\n**[[Lost City]]\n**[[Nature Spirit]]\n***[[Priest in Peril]]\n***[[The Restless Ghost]]\n*The ability to defeat a level 111 [[Tanglefoot]] with limited weaponry",
+  "official_difficulty": "Intermediate"
+ },
+ {
+  "page_name": "The Fremennik Isles",
+  "official_length": "Medium",
+  "requirements": "*Completion of [[The Fremennik Trials]]\n*<span class=\"scp\" data-skill=\"Construction\" data-level=\"20\" style=\"position:relative;display:inline-block;height:1em;\">[[File:Construction icon.png|link=Construction|alt=Construction]] 20 [[Construction]]</span> <sup class=\"nowrap\">[<span title=\"This requirement is boostable\" style=\"cursor:help; text-decoration: underline dotted;\">boostable</span>]</sup>  <sup class=\"nowrap\"><span>[</span><span title=\"This quest can be started without this requirement\" style=\"cursor:help; text-decoration: underline dotted;\">not required to start</span><span>]</span></sup> '\"`UNIQ--ref-00000003-QINU`\"'\n*The ability to kill a level 122 [[Ice Troll King|Troll King]] (Damage can be reduced) and, separately, 10 rock throwing [[ice troll]]s in a [[multicombat area]].",
+  "official_difficulty": "Experienced"
+ }
+]
