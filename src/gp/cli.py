@@ -6,12 +6,16 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from gp import service
+from gp import progress, service
 from gp.config import settings
 from gp.ingest import pipeline
 from gp.ingest.sources import HISCORE_BOARDS
 from gp.normalize.hiscores import levels
 from gp.normalize.quests import SKILLS
+from gp.recommend import compare as compare_mod
+from gp.recommend import gear as gear_mod
+from gp.recommend import now as now_mod
+from gp.recommend.prices import price_book
 from gp.rules import combat as combat_rules
 from gp.rules.builds import BuildError, find_build, load_builds, violations
 from gp.rules.guard import judge_all
@@ -245,6 +249,203 @@ def guard(
     console.print(
         "[dim]Fixed XP is exact; lamps count as safe only if you pick another skill; random XP and "
         "package choices are treated as the worst case (DECISIONS.md D4).[/]"
+    )
+
+
+def _find(build_name: str):
+    try:
+        return find_build(build_name)
+    except BuildError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
+
+
+def _gp(value: float | None) -> str:
+    if value is None:
+        return "?"
+    sign = "-" if value < 0 else ""
+    v = abs(value)
+    return f"{sign}{v / 1e6:.2f}M" if v >= 1e6 else f"{sign}{v / 1e3:.1f}k" if v >= 1e4 else f"{sign}{v:,.0f}"
+
+
+def _parse_gp(text: str) -> int:
+    t = text.strip().lower().replace(",", "")
+    mult = {"k": 1_000, "m": 1_000_000, "b": 1_000_000_000}.get(t[-1:], 1)
+    return int(float(t[:-1] if t[-1:] in "kmb" else t) * mult)
+
+
+@app.command()
+def done(
+    action: str = typer.Argument("list", help="list | add | remove"),
+    quests: list[str] = typer.Argument(None),
+):
+    """Quests you completed (kept locally in data/quests_done.txt - the hiscores do not expose them)."""
+    con = connect(read_only=True)
+    known = {n for (n,) in con.execute("select name from quests").fetchall()}
+    names = progress.load_done()
+    for raw in quests or []:
+        name = progress.resolve(raw, known)
+        if name is None:
+            console.print(f'[red]unknown quest {raw!r}[/] (names as on the wiki, e.g. "Dragon Slayer I")')
+            raise typer.Exit(1)
+        if action == "add":
+            names.add(name)
+        elif action == "remove":
+            names.discard(name)
+    if action in ("add", "remove"):
+        progress.save_done(names)
+    console.print(f"{len(names)} quests marked done" + (": " + ", ".join(sorted(names)) if names else ""))
+
+
+@app.command()
+def now(
+    build_name: str = typer.Argument(..., metavar="BUILD"),
+    rsn: str = typer.Option(None, help="Account to plan for (default: a fresh account)."),
+    mode: str = typer.Option("normal"),
+    set_: list[str] = typer.Option(None, "--set", help="Override levels: --set Defence=1"),
+    f2p: bool = typer.Option(False, "--f2p", help="Free-to-play only."),
+):
+    """What to do now: quests available and safe for the build, next milestones, training and money makers."""
+    b = _find(build_name)
+    acc = _account(rsn, mode, set_)
+    members = not f2p
+    con = connect(read_only=True)
+    done_quests = progress.load_done()
+    prices, _ = price_book(con)
+    who = acc.rsn or ("levels from --set" if set_ else "fresh account")
+    console.rule(f"[bold]{b.names[0]}[/] - {who} - {'F2P' if f2p else 'P2P'} - {len(done_quests)} quests marked done")
+    if broken := violations(b, acc.levels):
+        console.print(f"[bold red]Already breaks the build:[/] {'; '.join(broken)}")
+
+    plan = now_mod.quest_plan(
+        con, service.quest_facts(con), build=b, xp=acc.xp, levels=acc.levels, done=done_quests, members=members
+    )
+    table = Table("quest", "status", "QP", "useful XP", "unlocks gear", "notes", title="Quests you can do now")
+    for o in plan.available[:15]:
+        table.add_row(
+            o.quest,
+            f"[{STATUS_STYLE[o.status]}]{o.status}[/]",
+            str(o.quest_points),
+            f"{o.useful_xp:,}",
+            ", ".join(o.unlocks[:3]) or "-",
+            "; ".join(o.notes)[:70] or "-",
+        )
+    console.print(table)
+    console.print(
+        f"[dim]Ranked by gear unlocked, then XP in skills the build does not lock, then quest points. "
+        f"{len(plan.waiting_on_prerequisites)} more are safe but wait on prerequisites; "
+        f"{len(plan.missing_levels)} need higher levels.[/]"
+    )
+
+    skills = list(b.limits) + [
+        s for s in ("Attack", "Strength", "Defence", "Ranged", "Magic", "Prayer") if s not in b.limits
+    ]
+    ms = Table(
+        "skill", "level", "XP needed", "unlocks gear", "unlocks quests", title="Next milestones (within the build)"
+    )
+    for m in now_mod.milestones(con, build=b, levels=acc.levels, xp=acc.xp, skills=skills, members=members):
+        ms.add_row(
+            m.skill, str(m.level), f"{m.xp_needed:,}", ", ".join(m.items[:4]) or "-", ", ".join(m.quests[:3]) or "-"
+        )
+    console.print(ms)
+
+    tr = Table("skill", "action", "lvl", "XP/action", "ticks", "XP/h ceiling", "gp/XP", title="Training at your levels")
+    for skill in ("Cooking", "Fletching", "Crafting", "Smithing", "Herblore", "Firemaking"):
+        for t in now_mod.training_options(con, prices, levels=acc.levels, skill=skill, members=members, top=3):
+            gpxp = f"{t.gp_per_xp:+.1f}" + ("" if t.output_sold else " [dim](product unsold)[/]")
+            tr.add_row(
+                t.skill, t.action, str(t.level), f"{t.xp:g}", f"{t.ticks:g}", f"{t.xp_per_hour_ceiling:,.0f}", gpxp
+            )
+    console.print(tr)
+    console.print(
+        "[dim]Recipes you can do now with buyable materials, ranked by XP per action. XP/h ceiling = XP x 6,000 "
+        f"ticks/h / ticks (1 tick = 0.6 s, {now_mod.GAME_TICK_SOURCE}) - excludes banking, real rates are lower. "
+        "gp/XP: buy materials, sell product instantly at current GE prices.[/]"
+    )
+
+    mm = Table("activity", "category", "profit/h now", "wiki value", title="Money makers you qualify for")
+    for m in now_mod.money_options(con, prices, levels=acc.levels, build=b, members=members):
+        mm.add_row(
+            m.activity.replace("[[", "").replace("]]", "")[:60],
+            m.category or "-",
+            _gp(m.profit_per_hour) if m.profit_per_hour is not None else f"? ({', '.join(m.unpriced[:2])})",
+            _gp(m.wiki_value_per_hour),
+        )
+    console.print(mm)
+    if b.limits:
+        console.print(
+            f"[yellow]Combat money makers train whatever attack style you use - keep it off {', '.join(b.limits)}.[/]"
+        )
+
+
+@app.command()
+def gear(
+    build_name: str = typer.Argument(..., metavar="BUILD"),
+    budget: str = typer.Option("5m", help="e.g. 500k, 5m, 1.2b"),
+    rsn: str = typer.Option(None),
+    mode: str = typer.Option("normal"),
+    set_: list[str] = typer.Option(None, "--set", help="Override levels: --set Attack=60"),
+    f2p: bool = typer.Option(False, "--f2p"),
+    allow_unverified: bool = typer.Option(
+        False, help="Include items whose requirement could not be read from the wiki."
+    ),
+):
+    """Best melee set for a budget: maximises strength bonus within the build's limits (knapsack over slots)."""
+    b = _find(build_name)
+    acc = _account(rsn, mode, set_)
+    con = connect(read_only=True)
+    _, by_id = price_book(con)
+    cands, excluded = gear_mod.candidates(
+        con,
+        by_id,
+        build=b,
+        levels=acc.levels,
+        done=progress.load_done(),
+        members=not f2p,
+        allow_unverified=allow_unverified,
+    )
+    best = gear_mod.best_set(cands, _parse_gp(budget))
+    table = Table("slot", "item", "price", "str", "best atk", "req", title=f"Melee set for {budget} - {b.names[0]}")
+    for c in best.items:
+        table.add_row(c.slot, c.name, _gp(c.price), f"+{c.strength}", f"+{c.attack}", "verified" if c.verified else "?")
+    table.add_row(
+        "", "[bold]total[/]", f"[bold]{_gp(best.price)}[/]", f"[bold]+{best.strength}[/]", f"+{best.attack}", ""
+    )
+    console.print(table)
+    console.print(
+        "[dim]Objective: strength bonus (drives max hit: 0.5 + Effective Strength x (Strength Bonus + 64) / 640, "
+        f"{gear_mod.SOURCE}); tie-break accuracy. Prices: instant-buy GE.[/]"
+    )
+    console.print(
+        "[dim]Excluded: " + ", ".join(f"{n} {r}" for r, n in sorted(excluded.items(), key=lambda kv: -kv[1])) + "[/]"
+    )
+
+
+@app.command()
+def compare(builds_: list[str] = typer.Argument(..., metavar="BUILD...")):
+    """Compare builds side by side (facts and arithmetic only)."""
+    con = connect(read_only=True)
+    prices, _ = price_book(con)
+    quests = service.quest_facts(con)
+    summaries = [compare_mod.summarize(con, _find(n), quests, prices) for n in builds_]
+    table = Table("", *[s.build.names[0] for s in summaries], title="Build comparison")
+
+    def row(label, fn):
+        table.add_row(label, *[fn(s) for s in summaries])
+
+    row("members only", lambda s: "yes" if s.members_only else "no")
+    row("limits", lambda s: ", ".join(f"{k} <= {v.max}" for k, v in s.build.limits.items()) or "-")
+    row("combat (wiki variants)", lambda s: f"{s.combat_range[0]}-{s.combat_range[1]}" if s.combat_range else "-")
+    row("play style (wiki)", lambda s: ", ".join(s.types) or "-")
+    row("XP from fresh (lowest variant)", lambda s: f"{s.xp_to_lowest_variant:,}" if s.xp_to_lowest_variant else "-")
+    row("XP from fresh (highest variant)", lambda s: f"{s.xp_to_highest_variant:,}" if s.xp_to_highest_variant else "-")
+    row("quests blocked / risk", lambda s: f"{s.quests_blocked} / {s.quests_at_risk}")
+    row("quests safe or choosable", lambda s: str(s.quests_safe))
+    row("key unlocks", lambda s: "; ".join(f"{i} ({r}, {_gp(p)})" for i, r, p in s.unlocks) or "-")
+    console.print(table)
+    console.print(
+        "[dim]No time estimates: combat XP/h depends on gear, monster and method and is not in a structured "
+        "source. XP is the sum of combat-skill XP to reach the wiki's variant levels from a fresh account.[/]"
     )
 
 

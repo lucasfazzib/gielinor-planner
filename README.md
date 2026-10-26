@@ -8,8 +8,8 @@ The rule of the project: **every game fact is traceable**. Each row in the local
 revision (or API endpoint) it came from and when it was fetched. If something cannot be traced, it is flagged —
 never guessed.
 
-> **Status: phase 2 — builds, combat calculator, XP guard.** Next: "what do I do now" + training methods +
-> gear upgrades with GE prices (phase 3), then a local web UI in the style of a RuneLite side panel (phase 4).
+> **Status: phase 3 — "what do I do now", gear upgrades, build comparison.** Next: a local web UI in the style of
+> a RuneLite side panel (phase 4).
 > Unofficial fan project. Game data © Jagex; wiki content from the [OSRS Wiki](https://oldschool.runescape.wiki)
 > (CC BY-NC-SA 3.0); prices from the OSRS Wiki real-time prices API.
 
@@ -28,6 +28,10 @@ uv run gp combat --rsn "Lynx Titan"    # combat level + how many levels of each 
 uv run gp combat --then Strength=85    # "if I train Strength to 85, do I leave my bracket?"
 uv run gp guard "1 def pure" --f2p     # quests that would ruin the build, and why
 uv run gp guard zerker --rsn "SomeName" --show all
+uv run gp done add "Cook's Assistant" "Waterfall Quest"   # quests you finished (local file, not on hiscores)
+uv run gp now "1 def pure" --rsn "SomeName"              # quests now, next milestones, training, money makers
+uv run gp gear "1 def pure" --budget 5m --rsn "SomeName" # best melee set for the budget, within the build
+uv run gp compare "1 def pure" zerker "obby mauler" med   # builds side by side (facts only, no time guesses)
 GP_OFFLINE=1 uv run gp quest "Waterfall Quest"   # works offline after the first ingest
 uv run pytest
 ```
@@ -63,6 +67,26 @@ Defence (35,000 or 20,000) — stored as `choice_bundle` and treated as the wors
   The Fremennik Isles is `safe_if_choose`; Monkey Madness I is a `risk` (both reward packages give Defence).
   F2P: 23 quests safe, Dragon Slayer I blocked.
 
+## Phase 3 — recommendations (2026-10-26)
+
+New structured sources: **5,459 training recipes** (Bucket `recipe`: XP, level, ticks, materials, product) and
+**645 money-making methods** (Bucket `money_making_guide`), plus the GE **1-hour volumes** for a liquidity check.
+
+| Command | How it decides | What it refuses to do |
+|---|---|---|
+| `gp now` | quests: available (levels + prerequisites done) and safe for the build, ranked by gear unlocked, then XP in unlocked skills, then QP; milestones: next levels (within the build) that unlock gear or quests; training: recipes with buyable materials ranked by XP per action, with gp/XP at current prices; money: methods you qualify for, profit/h recomputed with live prices | no XP/h guesses for combat; the recipe XP/h is labelled a ceiling (no banking) and never used to rank |
+| `gp gear` | multiple-choice knapsack: max melee strength bonus (the gear term of the max-hit formula) within budget, levels, build limits, quests done, one item per slot (2h excludes weapon + shield) | items whose requirement could not be read are excluded unless `--allow-unverified` |
+| `gp compare` | wiki variants (combat range, play style), XP from a fresh account to each variant, guard counts, key unlock requirements and prices | no "time to build" estimates |
+
+Data-quality lessons from this phase (all in `DECISIONS.md`):
+- Equipment requirements are phrased in at least seven ways on the wiki (`requires a [[Ranged]] level of 85`,
+  `[[Attack]] and [[Strength]] levels of 75`, `level 80 in [[Defence]], [[Strength]], ...`, `has no requirements`,
+  `same ... requirements as [[rune platelegs]]`, ...). Covering them took coverage from 1,074 to **1,273 items with
+  a requirement + 122 confirmed to have none**, and caught the Twisted bow / Elder maul / Armadyl crossbow, which
+  the first parser missed.
+- A thinly traded item (Moonlight mead(m): instant-buy 30,000, instant-sell 100,000) made a cooking recipe look like
+  +1,659 gp/XP. Prices are now used only when recent, not crossed, and (for selling) actually traded in the last hour.
+
 ## Data engineering concepts in this project
 
 | Concept | Where | Why it matters here |
@@ -83,6 +107,9 @@ Defence (35,000 or 20,000) — stored as `choice_bundle` and treated as the wors
 | **Join, don't copy** | build variants and unlock requirements are joined from the store at runtime | Numbers have one home (the wiki snapshot) and cannot drift between YAML and data |
 | **Cross-source validation** | formula-computed combat vs the infobox's stated combat (`gp quality`) | Two sources that should agree are compared; disagreements are surfaced, not hidden |
 | **Graph propagation** | quest prerequisites resolved recursively in the guard | A dependency's problem is the dependent's problem — like upstream data quality |
+| **Liquidity-aware pricing** | `recommend/prices.py`: recency, crossed-market and 1-hour volume checks | A quoted price is not a price you can trade at; stale/thin quotes are dropped, not averaged in |
+| **Optimisation over clean data** | `recommend/gear.py`: Pareto pruning + multiple-choice knapsack | The model is simple; correctness comes from the constraints (verified requirements, build limits, budget) |
+| **Shift-left quality** | `.pre-commit-config.yaml` runs ruff + pytest before each commit | The same checks as CI, before the push (added after a CI failure on an intermediate commit) |
 | **Secrets out of the repo** | `.env` (git-ignored) for contact/RSN; gitleaks in CI | Nothing personal in a public repo |
 
 ## Layout
@@ -93,7 +120,9 @@ src/gp/
   http.py            cached, polite HTTP client = raw layer (+ offline mode)
   ingest/sources.py  one fetcher per endpoint (wiki Bucket, wiki pages, prices, hiscores)
   ingest/pipeline.py raw -> normalize -> DuckDB with provenance; idempotent
-  normalize/         pure parsers: quest requirements & rewards, equip requirements, hiscores
+  normalize/         pure parsers: quest requirements & rewards, equip requirements, recipes, money methods, hiscores
+  rules/             XP table, combat level, builds (YAML), XP guard
+  recommend/         prices (liquidity), what-to-do-now, gear knapsack, build comparison
   store.py           DuckDB schema
   cli.py             `gp` commands (typer + rich)
 scripts/record_fixtures.py   saves small real responses for the tests
@@ -110,7 +139,9 @@ tests/                       parsers on recorded data, HTTP cache/offline/retry
 | `items` | equipable item × id | Bucket `infobox_item` + `infobox_bonuses` |
 | `item_requirements` | item × skill, with the evidence sentence | item page lead sentence (`provenance = wiki_prose`) |
 | `pure_builds` | build variant | Bucket `infobox_pure` |
-| `prices` | item (latest) | prices API `/mapping` + `/latest` |
+| `prices` | item (latest) | prices API `/mapping` + `/latest` + `/1h` volumes |
+| `recipes` | recipe (skill × action) | Bucket `recipe` |
+| `money_methods` | money-making method | Bucket `money_making_guide` |
 | `player_snapshots` | rsn × skill × fetch (appended) | official hiscores `index_lite.json` |
 
 See [SOURCES.md](SOURCES.md) for every source and its rules, and [DECISIONS.md](DECISIONS.md) for design choices.

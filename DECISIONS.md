@@ -62,6 +62,26 @@ it instead of trusting either value silently.
 Twice in phase 1-2 a remembered game fact was wrong (Monkey Madness I "safe for pures"; Nature Spirit's Defence XP).
 Rules are only coded after reading the wiki text; tests carry the expected values from the wiki.
 
-## D11 · Nothing personal in the repository
+## D11 · Completed quests are user input
+The hiscores do not expose quest completion. `gp done add/remove` keeps a local list (`data/quests_done.txt`,
+git-ignored). Without it the planner assumes no quests done and shows prerequisite chains instead of hiding them.
+
+## D12 · Prices must be liquid to be used
+Buy = instant-buy, sell = instant-sell (never overstate profit). A side older than 48 h is ignored, and a crossed
+market (sell > 1.2 x buy) drops the sell side. Found because a thinly traded mead turned a cooking recipe into
+"+1,659 gp/XP".
+
+## D13 · Training: rank by XP per action, show XP/h only as a ceiling
+Recipes give XP per action and ticks per action, so `XP x 6,000 / ticks` is a hard ceiling (1 tick = 0.6 s,
+wiki "Game tick"). It ignores banking and walking, which dominate real rates, so it is displayed but never used to
+rank. Only recipes whose materials can be bought on the GE are shown (minigame/quest-only inputs are excluded).
+Combat training XP/h is not available from a structured source and is not estimated.
+
+## D14 · Gear: one objective, stated
+`gp gear` maximises melee strength bonus (the gear term of the max-hit formula, wiki "Maximum melee hit") under
+budget, levels, build limits, quest requirements and one-item-per-slot (two-handed excludes weapon + shield) -
+a multiple-choice knapsack. Items whose requirement could not be read are excluded by default.
+
+## D15 · Nothing personal in the repository
 The contact e-mail for the prices API User-Agent (`GP_CONTACT`) and the default RSN (`GP_RSN`) live in `.env`
 (git-ignored). Test fixtures use a public account.

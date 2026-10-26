@@ -6,9 +6,9 @@ so the app works offline after the first `gp ingest` (`GP_OFFLINE=1`).
 
 | Source | Endpoint | Used for | Format (verified 2026-10-26) | Freshness | Rules we follow |
 |---|---|---|---|---|---|
-| OSRS Wiki - Bucket | `https://oldschool.runescape.wiki/api.php?action=bucket&query=...` | quests (`quest`), build variants (`infobox_pure`), items (`infobox_item`), equipment stats (`infobox_bonuses`) | JSON rows; max 5000 per query, paginated with `.offset()` | 7 days | descriptive User-Agent, >= 1 s between requests, cached |
+| OSRS Wiki - Bucket | `https://oldschool.runescape.wiki/api.php?action=bucket&query=...` | quests (`quest`), build variants (`infobox_pure`), items (`infobox_item`), equipment stats (`infobox_bonuses`), training recipes (`recipe.production_json`: XP, level, ticks, materials, product), money-making methods (`money_making_guide`) | JSON rows; max 5000 per query, paginated with `.offset()` | 7 days | descriptive User-Agent, >= 1 s between requests, cached |
 | OSRS Wiki - page wikitext | `api.php?action=query&prop=revisions&rvprop=content\|ids\|timestamp` (50 titles per call) | quest rewards (`{{Quest rewards}}`: QP, `{{SCP\|Skill\|xp}}`, lamps), quest `members` flag, equip requirements (lead sentence) | wikitext + revision id | 7 days | same |
-| OSRS Wiki - real-time prices | `https://prices.runescape.wiki/api/v1/osrs/mapping`, `/latest` | GE prices (instant buy/sell + time), buy limits, alch values | `/latest` = whole market in one call (~340 KB, 4.5k items) | mapping 1 day, latest 5 min | UA with contact (`GP_CONTACT`), **never per item**, cached |
+| OSRS Wiki - real-time prices | `https://prices.runescape.wiki/api/v1/osrs/mapping`, `/latest`, `/1h` | GE prices (instant buy/sell + time), buy limits, alch values, 1-hour traded volume (liquidity check, `DECISIONS.md` D12) | `/latest` and `/1h` = whole market in one call each | mapping 1 day, latest/1h 5 min | UA with contact (`GP_CONTACT`), **never per item**, cached |
 | Jagex hiscores | `https://secure.runescape.com/m=<board>/index_lite.json?player=<rsn>` | current levels/XP of a player | JSON with skill names (25 skills incl. Sailing); unranked = -1; 404 if not on that board | 10 min | one call per lookup |
 | Community notes | `notes/community/*.md` | tips curated by hand with a link to the thread | markdown | manual | **no scraping** of Reddit or forums |
 
@@ -21,6 +21,8 @@ Quest experience rewards, Optimal quest guide, Combat level (formula). "PvP acco
 "Tank" to Tanking, "Skiller" to Skill pure.
 
 Game facts checked on the wiki (not from memory): Sailing released 19 November 2025 (members skill, starts with
-the quest Pandemonium) - `https://oldschool.runescape.wiki/w/Sailing`.
+the quest Pandemonium) - `https://oldschool.runescape.wiki/w/Sailing`. Game tick = 0.6 s -
+`https://oldschool.runescape.wiki/w/Game_tick`. Melee max hit: Base Damage = 0.5 + Effective Strength x
+(Strength Bonus + 64) / 640 - `https://oldschool.runescape.wiki/w/Maximum_melee_hit`.
 
 Not used yet: Wise Old Man API (XP history) - planned for a later phase.
