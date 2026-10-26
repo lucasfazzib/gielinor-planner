@@ -1,0 +1,24 @@
+id: defence-pure
+names: [Defence pure, Def pure, Tank pure]
+f2p_possible: true
+source: https://oldschool.runescape.wiki/w/Defence_pure
+wiki_build: Defence pure
+summary: High Defence at a low combat level, trained only with the Defensive attack style.
+limits:
+  Attack:
+    max: 1
+    kind: hard
+    why: "every Defence pure variant on the wiki keeps Attack, Strength, Ranged and Magic at 1"
+  Strength:
+    max: 1
+    kind: hard
+    why: "same"
+  Ranged:
+    max: 1
+    kind: hard
+    why: "same"
+  Magic:
+    max: 1
+    kind: hard
+    why: "same"
+key_unlocks: []

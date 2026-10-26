@@ -1,0 +1,9 @@
+id: main
+names: [Main, Main account]
+f2p_possible: true
+source: https://oldschool.runescape.wiki/w/Account_builds
+wiki_build: Main account
+summary: No restrictions - every quest and every unlock is fair game.
+limits: {}
+key_unlocks:
+  - item: Barrows gloves

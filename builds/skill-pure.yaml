@@ -1,0 +1,15 @@
+id: skill-pure
+names: [Skill pure, Skiller, Level-3 skiller]
+f2p_possible: true
+source: https://oldschool.runescape.wiki/w/Skill_pure
+wiki_build: Skill Pure
+summary: Combat level 3 forever; trains only non-combat skills (Slayer included).
+limits:
+  Attack: {max: 1, kind: hard, why: "Skill pures keep their combat stats at level 1 (Hitpoints at level 10)"}
+  Strength: {max: 1, kind: hard, why: "same"}
+  Defence: {max: 1, kind: hard, why: "same"}
+  Ranged: {max: 1, kind: hard, why: "same"}
+  Magic: {max: 1, kind: hard, why: "same"}
+  Prayer: {max: 1, kind: hard, why: "same (Prayer counts towards combat level)"}
+  Hitpoints: {max: 10, kind: hard, why: "same"}
+key_unlocks: []

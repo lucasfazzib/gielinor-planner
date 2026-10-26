@@ -1,0 +1,15 @@
+id: berserker
+names: [Berserker, Zerker]
+f2p_possible: false
+source: https://oldschool.runescape.wiki/w/Berserker_(Account_build)
+wiki_build: Berserker
+summary: Pure characterised by 45 Defence, the level needed to wear the berserker helm.
+limits:
+  Defence:
+    max: 45
+    kind: hard
+    why: "typically having 45 Defence in order to wear the berserker helm"
+key_unlocks:
+  # requirements are read from the item pages at runtime (item_requirements), not copied here
+  - item: Berserker helm
+  - item: Barrows gloves

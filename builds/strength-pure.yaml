@@ -1,0 +1,16 @@
+id: strength-pure
+names: [Strength pure, Str pure]
+f2p_possible: true
+source: https://oldschool.runescape.wiki/w/Free-to-play_account_builds
+wiki_build: Strength pure
+summary: Free-to-play pure with 1 Attack and 1 Defence, high Strength.
+limits:
+  Attack:
+    max: 1
+    kind: hard
+    why: "every Strength pure variant on the wiki has 1 Attack"
+  Defence:
+    max: 1
+    kind: hard
+    why: "every Strength pure variant on the wiki has 1 Defence"
+key_unlocks: []

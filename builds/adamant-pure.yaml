@@ -1,0 +1,13 @@
+id: adamant-pure
+names: [Adamant pure, Addy pure]
+f2p_possible: true
+source: https://oldschool.runescape.wiki/w/Free-to-play_account_builds
+wiki_build: Adamant pure
+summary: Free-to-play pure with 30 Defence (adamant armour) and high offence.
+limits:
+  Defence:
+    max: 30
+    kind: hard
+    why: "every Adamant pure variant on the wiki has 30 Defence"
+key_unlocks:
+  - item: Adamant platebody

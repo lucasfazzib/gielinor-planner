@@ -1,0 +1,21 @@
+id: obsidian-mauler
+names: [Obsidian mauler, Obby mauler, Strength pure (members)]
+f2p_possible: false
+source: https://oldschool.runescape.wiki/w/Obsidian_mauler
+wiki_build: Obsidian mauler
+summary: Trains Strength very high while restricting the other combat stats; uses the Tzhaar-ket-om.
+limits:
+  Attack:
+    max: 1
+    kind: hard
+    why: "Obbies typically remain at a low Attack level (often level 1)"
+  Defence:
+    max: 1
+    kind: hard
+    why: "restricting all other Combat stats to maintain a low Combat level (the wiki also lists 45/60/75 Defence tank variants)"
+  Ranged:
+    max: 1
+    kind: soft
+    why: "naturally having low Ranged and Magic levels"
+key_unlocks:
+  - item: Tzhaar-ket-om

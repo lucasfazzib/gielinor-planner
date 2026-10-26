@@ -1,0 +1,13 @@
+id: medium-level
+names: [Medium-level build, Med, Med level]
+f2p_possible: false
+source: https://oldschool.runescape.wiki/w/Medium-level_build
+wiki_build: Medium-level
+summary: Near-maxed offence with 70-80 Defence, to fight lower builds with a gear and stat advantage.
+limits:
+  Defence:
+    max: 80
+    kind: soft
+    why: "Meds will typically have 60-80 Attack and 70-80 Defence, depending on their desired equipment and combat level"
+key_unlocks:
+  - item: Barrows gloves

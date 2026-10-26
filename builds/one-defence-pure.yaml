@@ -1,0 +1,12 @@
+id: one-defence-pure
+names: [One-defence pure, 1 def pure, 1-def pure]
+f2p_possible: true          # the wiki lists free-to-play variants of this build
+source: https://oldschool.runescape.wiki/w/One-defence_pure
+wiki_build: One-defence pure  # joins the wiki's build variants (Bucket infobox_pure) by name
+summary: Combat pure that keeps Defence at 1 to maximise damage at a low combat level.
+limits:
+  Defence:
+    max: 1
+    kind: hard
+    why: "sacrifices training Defence to focus on maximising damage output at a lower combat level"
+key_unlocks: []
