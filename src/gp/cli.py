@@ -6,14 +6,47 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from gp import service
 from gp.config import settings
 from gp.ingest import pipeline
 from gp.ingest.sources import HISCORE_BOARDS
 from gp.normalize.hiscores import levels
+from gp.normalize.quests import SKILLS
+from gp.rules import combat as combat_rules
+from gp.rules.builds import BuildError, find_build, load_builds, violations
+from gp.rules.guard import judge_all
 from gp.store import connect
 
 app = typer.Typer(no_args_is_help=True, add_completion=False, help="Old School RuneScape account planner.")
 console = Console()
+
+STATUS_STYLE = {
+    "blocked": "bold red",
+    "risk": "red",
+    "unknown": "yellow",
+    "safe_if_choose": "cyan",
+    "fits": "green",
+    "safe": "dim green",
+}
+
+
+def _overrides(values: list[str] | None) -> dict[str, int]:
+    out = {}
+    for item in values or []:
+        skill, _, level = item.partition("=")
+        skill = skill.strip().capitalize()
+        if skill not in SKILLS or not level.strip().isdigit():
+            raise typer.BadParameter(f"use Skill=level, e.g. Strength=85 (got {item!r})")
+        out[skill] = int(level)
+    return out
+
+
+def _account(rsn: str | None, mode: str, sets: list[str] | None) -> service.Account:
+    try:
+        return service.load_account(rsn, mode, _overrides(sets))
+    except LookupError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
 
 
 @app.command()
@@ -91,6 +124,131 @@ def quest(name: str):
 
 
 @app.command()
+def combat(
+    rsn: str = typer.Option(None, help="Read current levels from the hiscores."),
+    mode: str = typer.Option("normal"),
+    set_: list[str] = typer.Option(None, "--set", help="Override current levels: --set Prayer=43"),
+    then: list[str] = typer.Option(None, "--then", help="Simulate: --then Strength=85 --then Attack=60"),
+):
+    """Combat level (official formula) and what a change would do to it."""
+    acc = _account(rsn, mode, set_)
+    now = combat_rules.combat(acc.levels)
+    console.print(
+        f"combat level [bold]{now.level}[/] ({float(now.exact):.3f}, {now.style})"
+        + (f"  ·  {acc.rsn} ({acc.mode})" if acc.rsn else "  ·  fresh account")
+    )
+    if then:
+        after_levels = {**acc.levels, **_overrides(then)}
+        after = combat_rules.combat(after_levels)
+        delta = after.level - now.level
+        console.print(
+            f"after {', '.join(then)}: [bold]{after.level}[/] ({float(after.exact):.3f}, {after.style})  "
+            + (f"[red]+{delta} combat - you leave your bracket[/]" if delta else "[green]same combat level[/]")
+        )
+    nxt = combat_rules.levels_to_next_combat(acc.levels)
+    table = Table("skill", "level", "levels for +1 combat", title="what raises your combat level")
+    for skill in combat_rules.COMBAT_SKILLS:
+        table.add_row(skill, str(acc.levels.get(skill) or "?"), str(nxt[skill]) if nxt[skill] else "-")
+    console.print(table)
+    console.print(f"[dim]formula: {combat_rules.SOURCE}[/]")
+
+
+@app.command()
+def builds():
+    """Builds the planner knows (builds/*.yaml)."""
+    table = Table("id", "names", "F2P", "limits", "source")
+    for b in load_builds().values():
+        limits = ", ".join(
+            f"{s} <= {lim.max}" + ("" if lim.kind == "hard" else " (soft)") for s, lim in b.limits.items()
+        )
+        table.add_row(b.id, ", ".join(b.names[:2]), "yes" if b.f2p_possible else "no", limits or "-", b.source)
+    console.print(table)
+
+
+@app.command()
+def build(name: str):
+    """A build: limits (with the wiki's wording), the wiki's variants, key unlocks and their requirements."""
+    try:
+        b = find_build(name)
+    except BuildError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
+    console.print(f"[bold]{b.names[0]}[/] - {b.summary}\n[dim]{b.source}[/]")
+    for s, lim in b.limits.items():
+        console.print(f'  {s} <= {lim.max} [{lim.kind}]  [dim]"{lim.why}"[/]')
+    variants = Table(
+        "combat (wiki)",
+        "computed",
+        "Atk",
+        "Str",
+        "Def",
+        "Pray",
+        "Rng",
+        "Mag",
+        "HP",
+        "members",
+        title=f"variants on the wiki ({b.wiki_build})",
+    )
+    for v in service.build_variants(b):
+        ok = v["combat_matches_wiki"]
+        computed = f"[{'green' if ok else 'yellow' if ok is None else 'red'}]{v['computed_combat']}[/]"
+        variants.add_row(
+            "-".join(v["combat_levels"] or []),
+            computed,
+            *[str(v[k]) for k in ("attack", "strength", "defence", "prayer", "ranged", "magic", "hitpoints")],
+            str(v["members"]),
+        )
+    console.print(variants)
+    for item in b.key_unlocks:
+        req = service.unlock_requirements(item)
+        needs = ", ".join([f"{lv} {s}" for s, lv in req["skills"]] + req["quests"]) or "no requirement sentence found"
+        console.print(f"  unlock [bold]{item}[/]: {needs}  [dim]{req['source_url'] or ''}[/]")
+
+
+@app.command()
+def guard(
+    build_name: str = typer.Argument(..., metavar="BUILD"),
+    rsn: str = typer.Option(None, help="Use this account's current XP (default: a fresh account)."),
+    mode: str = typer.Option("normal"),
+    set_: list[str] = typer.Option(None, "--set", help="Override levels: --set Defence=1"),
+    f2p: bool = typer.Option(False, "--f2p", help="Only free-to-play quests."),
+    show: str = typer.Option("problems", help="problems | all | safe"),
+):
+    """XP guard: quests that would break the build's limits, and why."""
+    try:
+        b = find_build(build_name)
+    except BuildError as exc:
+        console.print(f"[red]{exc}[/]")
+        raise typer.Exit(1) from exc
+    acc = _account(rsn, mode, set_)
+    if broken := violations(b, acc.levels):
+        console.print(f"[bold red]This account already breaks the build:[/] {'; '.join(broken)}")
+    verdicts = judge_all(service.quest_facts(), b, acc.xp, members=not f2p)
+    wanted = {"problems": {"blocked", "risk", "unknown", "safe_if_choose"}, "safe": {"safe", "fits"}}.get(
+        show, set(STATUS_STYLE)
+    )
+    table = Table(
+        "status",
+        "quest",
+        "why",
+        title=f"XP guard - {b.names[0]}"
+        + (f" - {acc.rsn}" if acc.rsn else " - fresh account")
+        + (" - F2P" if f2p else ""),
+    )
+    counts: dict[str, int] = {}
+    for v in verdicts:
+        counts[v.status] = counts.get(v.status, 0) + 1
+        if v.status in wanted:
+            table.add_row(f"[{STATUS_STYLE[v.status]}]{v.status}[/]", v.quest, "; ".join(v.reasons) or "-")
+    console.print(table)
+    console.print("  ".join(f"[{STATUS_STYLE[s]}]{s}[/] {counts.get(s, 0)}" for s in STATUS_STYLE))
+    console.print(
+        "[dim]Fixed XP is exact; lamps count as safe only if you pick another skill; random XP and "
+        "package choices are treated as the worst case (DECISIONS.md D4).[/]"
+    )
+
+
+@app.command()
 def quality():
     """What the parsers could NOT read - review these instead of trusting silence."""
     con = connect(read_only=True)
@@ -106,6 +264,21 @@ def quality():
         "select count(distinct page) filter (where equip_req_status = 'found'), count(distinct page) from items "
         "where tradeable"
     ).fetchone()
+    mismatches = Table(
+        "build variant",
+        "Atk/Str/Def/Pray/Rng/Mag/HP",
+        "wiki says",
+        "formula gives",
+        title="Build variants whose stated combat level disagrees with the official formula",
+    )
+    for b in load_builds().values():
+        for v in service.build_variants(b):
+            if v["combat_matches_wiki"] is False:
+                stats = "/".join(
+                    str(v[k]) for k in ("attack", "strength", "defence", "prayer", "ranged", "magic", "hitpoints")
+                )
+                mismatches.add_row(v["name"], stats, "-".join(v["combat_levels"]), str(v["computed_combat"]))
+    console.print(mismatches)
     console.print(
         f"[bold]Equip requirements[/]: found for {found:,} of {total:,} tradeable equipable items. "
         "The rest either have no requirement (e.g. bronze) or phrase it differently - treat as unknown."

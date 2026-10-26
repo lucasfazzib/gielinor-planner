@@ -8,8 +8,8 @@ The rule of the project: **every game fact is traceable**. Each row in the local
 revision (or API endpoint) it came from and when it was fetched. If something cannot be traced, it is flagged —
 never guessed.
 
-> **Status: phase 1 — ingestion.** Next: builds in YAML + combat calculator + XP guard (phase 2),
-> "what do I do now" + gear upgrades (phase 3), local web UI (phase 4).
+> **Status: phase 2 — builds, combat calculator, XP guard.** Next: "what do I do now" + training methods +
+> gear upgrades with GE prices (phase 3), then a local web UI in the style of a RuneLite side panel (phase 4).
 > Unofficial fan project. Game data © Jagex; wiki content from the [OSRS Wiki](https://oldschool.runescape.wiki)
 > (CC BY-NC-SA 3.0); prices from the OSRS Wiki real-time prices API.
 
@@ -22,6 +22,12 @@ uv run gp ingest                       # wiki + GE prices -> raw cache -> DuckDB
 uv run gp stats --rsn "Lynx Titan"     # any public name; --mode normal|ironman|hardcore|ultimate
 uv run gp quest "Fairytale I - Growing Pains"
 uv run gp db                           # what is in the store and how fresh it is
+uv run gp builds                       # builds/*.yaml
+uv run gp build zerker                 # limits with the wiki's wording, wiki variants, key unlock requirements
+uv run gp combat --rsn "Lynx Titan"    # combat level + how many levels of each skill raise it
+uv run gp combat --then Strength=85    # "if I train Strength to 85, do I leave my bracket?"
+uv run gp guard "1 def pure" --f2p     # quests that would ruin the build, and why
+uv run gp guard zerker --rsn "SomeName" --show all
 GP_OFFLINE=1 uv run gp quest "Waterfall Quest"   # works offline after the first ingest
 uv run pytest
 ```
@@ -46,6 +52,17 @@ pick something else. `Monkey Madness I` looks like one but is a **choice between
 Defence (35,000 or 20,000) — stored as `choice_bundle` and treated as the worst case.
 
 
+## Phase 2 — rules (2026-10-26)
+
+- **10 builds** as YAML (main, one-defence pure, berserker, obsidian mauler, strength pure, medium-level,
+  defence pure, skill pure, rune pure, adamant pure). Each limit quotes the wiki page that justifies it.
+- **Combat calculator** with the official formula in exact fractions; checked against the wiki's build variants
+  (One-defence pure 79, Berserker 83/92/99 all match; one Obsidian mauler variant disagrees and is reported).
+- **XP guard** for a fresh one-defence pure (members): Dragon Slayer I (+18,650 Defence), Nature Spirit
+  (+2,000 Defence) and everything that requires them (Fairytale I, the Myreque chain, ...) come out `blocked`;
+  The Fremennik Isles is `safe_if_choose`; Monkey Madness I is a `risk` (both reward packages give Defence).
+  F2P: 23 quests safe, Dragon Slayer I blocked.
+
 ## Data engineering concepts in this project
 
 | Concept | Where | Why it matters here |
@@ -62,6 +79,10 @@ Defence (35,000 or 20,000) — stored as `choice_bundle` and treated as the wors
 | **Unknown ≠ default** | unranked hiscore skills stay `NULL`; empty Bucket booleans stay `NULL` | Treating "unknown" as "level 1" or "false" would make the planner silently wrong |
 | **Data quality reporting** | `gp ingest` reports unparsed reward lines and items without a requirement sentence | Gaps are visible and reviewable instead of hidden |
 | **Pure parsers + recorded fixtures** | `normalize/*` are pure functions; tests use real responses saved by `scripts/record_fixtures.py` | Tests run offline in CI and break loudly when the wiki changes format |
+| **Configuration as data** | `builds/*.yaml` + a validating loader | New builds without code; invalid files fail fast with a clear message |
+| **Join, don't copy** | build variants and unlock requirements are joined from the store at runtime | Numbers have one home (the wiki snapshot) and cannot drift between YAML and data |
+| **Cross-source validation** | formula-computed combat vs the infobox's stated combat (`gp quality`) | Two sources that should agree are compared; disagreements are surfaced, not hidden |
+| **Graph propagation** | quest prerequisites resolved recursively in the guard | A dependency's problem is the dependent's problem — like upstream data quality |
 | **Secrets out of the repo** | `.env` (git-ignored) for contact/RSN; gitleaks in CI | Nothing personal in a public repo |
 
 ## Layout

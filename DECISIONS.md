@@ -38,6 +38,30 @@ The `quest` bucket can have several rows per page ("Recipe for Disaster/Full gui
 Quests are keyed by the `name` inside the row's `json`; one row per name, preferring the quest's own page.
 Rewards are only read from the quest's own page (a guide page's rewards template would belong to the whole saga).
 
-## D7 · Nothing personal in the repository
+## D7 · Builds are YAML; numbers the wiki has are joined, not copied
+`builds/*.yaml` declares only what defines a build: its limits (`max`, `hard`/`soft`) with the wiki's own wording
+as the reason, plus key unlock items. Variant target levels and combat ranges come from Bucket `infobox_pure`
+(joined by `wiki_build`), and unlock requirements from `item_requirements` - so a wiki edit flows in on the next
+ingest instead of going stale in YAML. A loader validates every file (known skills, 1..99, Hitpoints >= 10).
+
+## D8 · XP guard semantics
+Per quest, against the account's current XP (fresh account when no RSN): `blocked` (fixed XP beyond the headroom,
+a skill requirement above a limit, or a blocked prerequisite), `risk` (random XP / package choice, D4),
+`safe_if_choose`, `fits` (fixed XP that still fits, e.g. a zerker under 45 Defence), `safe`, `unknown`.
+Headroom = experience that keeps the skill at the limit (`xp(limit + 1) - 1`), from the wiki's XP formula.
+Prerequisites propagate: a quest is never safer than the chain it requires (In Aid of the Myreque blocks
+Darkness of Hallowvale, which blocks A Taste of Hope...). Cumulative XP across several quests that each "fit"
+is phase 3's job (the planner chooses a set, not one quest).
+
+## D9 · The formula is the authority, not the infobox
+Combat levels are computed with exact fractions from the wiki's "Combat level" formula. When a build variant's
+stated combat level disagrees (e.g. an Obsidian mauler variant says 55; its stats give 57), `gp quality` reports
+it instead of trusting either value silently.
+
+## D10 · Memory is not a source
+Twice in phase 1-2 a remembered game fact was wrong (Monkey Madness I "safe for pures"; Nature Spirit's Defence XP).
+Rules are only coded after reading the wiki text; tests carry the expected values from the wiki.
+
+## D11 · Nothing personal in the repository
 The contact e-mail for the prices API User-Agent (`GP_CONTACT`) and the default RSN (`GP_RSN`) live in `.env`
 (git-ignored). Test fixtures use a public account.
