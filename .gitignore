@@ -1,0 +1,8 @@
+# local data: raw API responses, DuckDB, never committed
+data/
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
