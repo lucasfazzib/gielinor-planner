@@ -18,7 +18,7 @@ dependencies = [
 gp = "gp.cli:app"
 
 [dependency-groups]
-dev = ["pytest==9.1.1", "ruff==0.17.0"]
+dev = ["pytest==9.1.1", "ruff==0.17.0", "pre-commit==4.3.0"]
 
 [build-system]
 requires = ["hatchling"]
@@ -42,6 +42,7 @@ extend-immutable-calls = ["typer.Option", "typer.Argument"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/gp/cli.py" = ["PLR0917"]  # CLI commands mirror their flags one-to-one
+"tests/*" = ["E501"]  # wiki sentences are quoted verbatim as test cases
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

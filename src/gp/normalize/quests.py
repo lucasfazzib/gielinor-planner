@@ -77,12 +77,13 @@ def parse_requirements(markup: str) -> Requirements:
         flags = line_soup.get_text(" ", strip=True).lower()
         for span in spans:
             skill = span["data-skill"].strip().capitalize()
-            if skill not in SKILLS:
+            level = re.match(r"\d+", span["data-level"].strip())  # money guides write e.g. "70+"
+            if skill not in SKILLS or not level:
                 continue
             req.skills.append(
                 SkillReq(
                     skill=skill,
-                    level=int(span["data-level"]),
+                    level=int(level.group()),
                     boostable="boostable" in flags and "not boostable" not in flags,
                     required_to_start="not require" not in flags and "can be started without" not in flags,
                 )
