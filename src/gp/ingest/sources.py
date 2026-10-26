@@ -106,6 +106,11 @@ def price_latest(client: Client) -> Cached:
     return client.get("prices", f"{PRICES}/latest", ttl=300)
 
 
+def price_1h(client: Client) -> Cached:
+    """Average price and traded volume per side over the last hour (liquidity check, DECISIONS.md D12)."""
+    return client.get("prices", f"{PRICES}/1h", ttl=300)
+
+
 # ---------- Official hiscores ----------
 def hiscores(client: Client, rsn: str, mode: str = "normal") -> Cached:
     board = HISCORE_BOARDS[mode]

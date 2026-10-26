@@ -43,7 +43,20 @@ create table if not exists prices (
     -- bigint: some items trade above 2^31 gp (seen: 2,294,999,989)
     item_id integer, name varchar, members boolean, buy_limit integer, high_alch bigint,
     high bigint, high_time timestamptz, low bigint, low_time timestamptz,
+    volume_high_1h bigint, volume_low_1h bigint,  -- items traded per side in the last hour (/1h)
     source_url varchar, fetched_at timestamptz
+);
+create table if not exists recipes (
+    name varchar, skill varchar, level integer, xp double, ticks double, members boolean,
+    materials struct(item varchar, qty double)[], output_item varchar, output_qty double,
+    other_skills struct(skill varchar, level integer)[], source_url varchar, fetched_at timestamptz
+);
+create table if not exists money_methods (
+    page varchar, activity varchar, category varchar, members boolean, recurring boolean,
+    actions_per_hour double, actions_label varchar, skill_reqs struct(skill varchar, level integer)[],
+    inputs struct(item varchar, qty double, per_hour boolean)[],
+    outputs struct(item varchar, qty double, per_hour boolean)[],
+    wiki_value_per_hour double, source_url varchar, fetched_at timestamptz
 );
 create table if not exists player_snapshots (
     rsn varchar, mode varchar, skill varchar, level integer, xp bigint, rank integer,
@@ -51,7 +64,17 @@ create table if not exists player_snapshots (
 );
 """
 
-REBUILT = ["quests", "quest_requirements", "quest_xp_rewards", "items", "item_requirements", "pure_builds", "prices"]
+REBUILT = [
+    "quests",
+    "quest_requirements",
+    "quest_xp_rewards",
+    "items",
+    "item_requirements",
+    "pure_builds",
+    "prices",
+    "recipes",
+    "money_methods",
+]
 
 
 def connect(read_only: bool = False) -> duckdb.DuckDBPyConnection:

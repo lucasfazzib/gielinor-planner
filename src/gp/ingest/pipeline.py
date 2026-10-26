@@ -12,6 +12,7 @@ import duckdb
 
 from gp.http import Client
 from gp.ingest import sources as src
+from gp.normalize.activities import parse_money_method, parse_recipe
 from gp.normalize.hiscores import parse_hiscores
 from gp.normalize.items import equip_requirements
 from gp.normalize.quests import parse_requirements, parse_rewards
@@ -174,13 +175,27 @@ def ingest_items(client: Client, con: duckdb.DuckDBPyConnection, with_pages: boo
     rows, req_rows = [], []
     equipable_pages = sorted({b["page_name"] for b, _ in bonuses})
     pages = src.wikitexts(client, equipable_pages) if with_pages else {}
-    reqs_by_page = {}
+    parsed = {name: equip_requirements(page["content"]) for name, page in pages.items()}
+    by_lower = {name.lower(): name for name in parsed}
+    status_by_page: dict[str, str] = {}
     for page_name, page in pages.items():
-        found = equip_requirements(page["content"])
-        reqs_by_page[page_name] = bool(found.skills)
+        found = parsed[page_name]
+        provenance = "wiki_prose"
+        if found.same_as:  # "same bonuses and requirements as [[rune platelegs]]" -> inherit
+            base_name = by_lower.get(found.same_as.lower())
+            base = parsed.get(base_name or "")
+            if base and (base.skills or base.none_stated):
+                found = type(found)(base.skills, base.quests, found.evidence, base.none_stated)
+                provenance = f"wiki_prose; same as {base_name}"
+        if found.skills:
+            status_by_page[page_name] = "found"
+        elif found.none_stated:
+            status_by_page[page_name] = "no_requirement"
+        else:
+            status_by_page[page_name] = "none_found"
         common = {
             "page": page_name,
-            "provenance": "wiki_prose",
+            "provenance": provenance,
             "evidence": found.evidence,
             "source_url": src.page_url(page_name),
             "source_revid": page["revid"],
@@ -190,10 +205,11 @@ def ingest_items(client: Client, con: duckdb.DuckDBPyConnection, with_pages: boo
             req_rows.append({**common, "kind": "skill", "skill": skill, "level": level, "quest": None})
         for quest in found.quests:
             req_rows.append({**common, "kind": "quest", "skill": None, "level": None, "quest": quest})
+    reqs_by_page = {p: s == "found" for p, s in status_by_page.items()}
     for b, resp in bonuses:
         item, _ = items.get(b["page_name_sub"], ({}, None))
         ids = item.get("item_id") or [None]
-        status = ("found" if reqs_by_page.get(b["page_name"]) else "none_found") if with_pages else "not_checked"
+        status = status_by_page.get(b["page_name"], "none_found") if with_pages else "not_checked"
         for item_id in ids:
             rows.append(
                 {
@@ -214,7 +230,55 @@ def ingest_items(client: Client, con: duckdb.DuckDBPyConnection, with_pages: boo
         "item_requirements": _insert(con, "item_requirements", req_rows),
         "equipable_pages": len(equipable_pages),
         "pages_with_requirement": sum(bool(v) for v in reqs_by_page.values()),
+        "pages_without_requirement_stated": sum(s == "no_requirement" for s in status_by_page.values()),
     }
+
+
+def ingest_recipes(client: Client, con: duckdb.DuckDBPyConnection) -> dict:
+    rows = []
+    for r, resp in src.bucket_rows(client, "recipe", ["page_name", "page_name_sub", "production_json"]):
+        for rec in parse_recipe(r["page_name_sub"], r.get("production_json")):
+            rows.append(
+                {
+                    "name": rec.name,
+                    "skill": rec.skill,
+                    "level": rec.level,
+                    "xp": rec.xp,
+                    "ticks": rec.ticks,
+                    "members": _bool(rec.members),
+                    "materials": [{"item": m, "qty": q} for m, q in rec.materials],
+                    "output_item": rec.output[0] if rec.output else None,
+                    "output_qty": rec.output[1] if rec.output else None,
+                    "other_skills": [{"skill": s, "level": lv} for s, lv in rec.other_skills],
+                    "source_url": src.page_url(r["page_name"]),
+                    "fetched_at": resp.fetched_at,
+                }
+            )
+    return {"recipes": _insert(con, "recipes", rows), "with_ticks": sum(r["ticks"] is not None for r in rows)}
+
+
+def ingest_money_methods(client: Client, con: duckdb.DuckDBPyConnection) -> dict:
+    rows = []
+    for r, resp in src.bucket_rows(client, "money_making_guide", ["page_name", "value", "recurring", "json"]):
+        m = parse_money_method(r["page_name"], r.get("json"), _bool(r.get("recurring")), r.get("value"))
+        rows.append(
+            {
+                "page": m.page,
+                "activity": m.activity,
+                "category": m.category,
+                "members": _bool(m.members),
+                "recurring": m.recurring,
+                "actions_per_hour": m.actions_per_hour,
+                "actions_label": m.actions_label,
+                "skill_reqs": [{"skill": s, "level": lv} for s, lv in m.skill_reqs],
+                "inputs": [{"item": i, "qty": q, "per_hour": ph} for i, q, ph in m.inputs],
+                "outputs": [{"item": i, "qty": q, "per_hour": ph} for i, q, ph in m.outputs],
+                "wiki_value_per_hour": m.wiki_value_per_hour,
+                "source_url": src.page_url(m.page),
+                "fetched_at": resp.fetched_at,
+            }
+        )
+    return {"money_methods": _insert(con, "money_methods", rows)}
 
 
 def ingest_pure_builds(client: Client, con: duckdb.DuckDBPyConnection) -> dict:
@@ -261,6 +325,7 @@ def ingest_prices(client: Client, con: duckdb.DuckDBPyConnection) -> dict:
     mapping = src.price_mapping(client)
     latest = src.price_latest(client)
     data = latest.json()["data"]
+    hourly = src.price_1h(client).json()["data"]
 
     def ts(epoch):
         return datetime.fromtimestamp(epoch, UTC) if epoch else None
@@ -279,6 +344,8 @@ def ingest_prices(client: Client, con: duckdb.DuckDBPyConnection) -> dict:
                 "high_time": ts(p.get("highTime")),
                 "low": p.get("low"),
                 "low_time": ts(p.get("lowTime")),
+                "volume_high_1h": hourly.get(str(m["id"]), {}).get("highPriceVolume", 0),
+                "volume_low_1h": hourly.get(str(m["id"]), {}).get("lowPriceVolume", 0),
                 "source_url": latest.url,
                 "fetched_at": latest.fetched_at,
             }
@@ -300,6 +367,8 @@ def run(client: Client | None = None, with_item_pages: bool = True, progress: Ca
             ("builds (infobox_pure)", lambda: ingest_pure_builds(client, con)),
             ("items", lambda: ingest_items(client, con, with_item_pages)),
             ("prices", lambda: ingest_prices(client, con)),
+            ("training recipes", lambda: ingest_recipes(client, con)),
+            ("money-making methods", lambda: ingest_money_methods(client, con)),
         ]:
             progress(f"ingesting {name}...")
             report[name] = step()
