@@ -85,3 +85,24 @@ a multiple-choice knapsack. Items whose requirement could not be read are exclud
 ## D15 · Nothing personal in the repository
 The contact e-mail for the prices API User-Agent (`GP_CONTACT`) and the default RSN (`GP_RSN`) live in `.env`
 (git-ignored). Test fixtures use a public account.
+
+## D16 · UI: server-rendered, local only, no JS framework
+FastAPI + Jinja templates + one stylesheet. Every view is a plain GET whose query string holds the account
+(name, mode, build, F2P, overrides), so views can be bookmarked and the browser's back button works. The only
+script is the quest-list filter. The server binds to 127.0.0.1. The one write (completed quests) is a form post;
+posts whose Origin is another site are refused, so a web page cannot tick quests on your machine.
+Style: the RuneLite plugin-panel layout (panel and icon tabs on the right) with the game's own palette (stone
+browns, parchment, orange/yellow text). Flat colours only, dense tables, no landing page.
+
+## D17 · Icons are data, not assets in the repo
+Skill and interface icons come from the wiki like every other fact: file names checked to exist, downloaded
+once through the polite client, cached in the raw layer, loaded into the `icons` table with the file page as
+`source_url`. Nothing from Jagex or the wiki is committed. The skills grid copies the in-game Skills tab
+layout. That is layout only; no rule depends on it.
+
+## D18 · Embedded DB under a web server
+One DuckDB connection per request, closed afterwards, so `gp ingest` can run while the UI is up. Opening and
+closing are serialised with a lock: a page requests ~30 icons in parallel, and concurrent opens of the same
+file failed ("Unique file handle conflict" - found with a screenshot, reproduced with 40 parallel requests,
+covered by a test). Hiscores snapshots are appended only when the hiscores were actually fetched, not on
+every page view that reads the 10-minute cache.

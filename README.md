@@ -8,8 +8,7 @@ The rule of the project: **every game fact is traceable**. Each row in the local
 revision (or API endpoint) it came from and when it was fetched. If something cannot be traced, it is flagged —
 never guessed.
 
-> **Status: phase 3 — "what do I do now", gear upgrades, build comparison.** Next: a local web UI in the style of
-> a RuneLite side panel (phase 4).
+> **Status: phase 4 — local web UI** (`uv run gp ui`) on top of the CLI from phases 1–3.
 > Unofficial fan project. Game data © Jagex; wiki content from the [OSRS Wiki](https://oldschool.runescape.wiki)
 > (CC BY-NC-SA 3.0); prices from the OSRS Wiki real-time prices API.
 
@@ -32,6 +31,7 @@ uv run gp done add "Cook's Assistant" "Waterfall Quest"   # quests you finished 
 uv run gp now "1 def pure" --rsn "SomeName"              # quests now, next milestones, training, money makers
 uv run gp gear "1 def pure" --budget 5m --rsn "SomeName" # best melee set for the budget, within the build
 uv run gp compare "1 def pure" zerker "obby mauler" med   # builds side by side (facts only, no time guesses)
+uv run gp ui                                              # web UI on http://127.0.0.1:8765/
 GP_OFFLINE=1 uv run gp quest "Waterfall Quest"   # works offline after the first ingest
 uv run pytest
 ```
@@ -87,6 +87,24 @@ Data-quality lessons from this phase (all in `DECISIONS.md`):
 - A thinly traded item (Moonlight mead(m): instant-buy 30,000, instant-sell 100,000) made a cooking recipe look like
   +1,659 gp/XP. Prices are now used only when recent, not crossed, and (for selling) actually traded in the last hour.
 
+## Phase 4 — local web UI (2026-10-27)
+
+`uv run gp ui` serves the planner on `http://127.0.0.1:8765/` (local only). It opens straight on the plan.
+There is no landing page.
+
+- **Layout of a RuneLite plugin panel:** the account panel and an icon tab strip sit on the right; the views
+  sit on the left, on parchment. The account panel shows name, mode, build, F2P, level overrides, the in-game
+  skills grid with the build's caps, the combat level and what raises it.
+- **Seven views:** Now · XP guard · Gear (laid out like the Worn Equipment tab) · Build · Compare ·
+  Quests (tick what you finished) · Data (freshness and what the parsers could not read).
+- **Same rules as the CLI:** the UI calls the same `service`/`recommend` functions; `web/views.py` only selects
+  and shapes. Every row links to its wiki page.
+- **Look:** dense tables, flat colours, no gradients, no JS framework. The only script is the quest filter.
+  The skill and interface icons come from the wiki like any other fact (34 files, provenance in the `icons`
+  table) and are served from the store, so the UI works offline.
+- The account lives in the query string, so any view can be bookmarked or shared
+  (`/gear?rsn=...&build=zerker&budget=5m`).
+
 ## Data engineering concepts in this project
 
 | Concept | Where | Why it matters here |
@@ -110,6 +128,10 @@ Data-quality lessons from this phase (all in `DECISIONS.md`):
 | **Liquidity-aware pricing** | `recommend/prices.py`: recency, crossed-market and 1-hour volume checks | A quoted price is not a price you can trade at; stale/thin quotes are dropped, not averaged in |
 | **Optimisation over clean data** | `recommend/gear.py`: Pareto pruning + multiple-choice knapsack | The model is simple; correctness comes from the constraints (verified requirements, build limits, budget) |
 | **Shift-left quality** | `.pre-commit-config.yaml` runs ruff + pytest before each commit | The same checks as CI, before the push (added after a CI failure on an intermediate commit) |
+| **One logic layer, many consumers** | CLI and web call the same `service`/`recommend` functions | A number cannot differ between the terminal and the browser |
+| **Binary assets as data** | icons cached in the raw layer (base64) and loaded into the `icons` table | Images get the same provenance, TTL and offline behaviour as every other source |
+| **Embedded database under concurrency** | `web/app.py`: one connection per request; opening/closing serialised | A page loads ~30 icons at once; parallel opens of the same DuckDB file raced (found in testing) |
+| **Snapshots per fetch, not per read** | `player_snapshots` appended only when the hiscores were actually fetched | Page views must not duplicate history rows |
 | **Secrets out of the repo** | `.env` (git-ignored) for contact/RSN; gitleaks in CI | Nothing personal in a public repo |
 
 ## Layout
@@ -125,6 +147,7 @@ src/gp/
   recommend/         prices (liquidity), what-to-do-now, gear knapsack, build comparison
   store.py           DuckDB schema
   cli.py             `gp` commands (typer + rich)
+  web/               `gp ui`: FastAPI + Jinja templates + one stylesheet (views.py = shaping only)
 scripts/record_fixtures.py   saves small real responses for the tests
 tests/                       parsers on recorded data, HTTP cache/offline/retry
 ```
@@ -142,6 +165,7 @@ tests/                       parsers on recorded data, HTTP cache/offline/retry
 | `prices` | item (latest) | prices API `/mapping` + `/latest` + `/1h` volumes |
 | `recipes` | recipe (skill × action) | Bucket `recipe` |
 | `money_methods` | money-making method | Bucket `money_making_guide` |
+| `icons` | UI icon | wiki file pages (`imageinfo`) + image files |
 | `player_snapshots` | rsn × skill × fetch (appended) | official hiscores `index_lite.json` |
 
 See [SOURCES.md](SOURCES.md) for every source and its rules, and [DECISIONS.md](DECISIONS.md) for design choices.
