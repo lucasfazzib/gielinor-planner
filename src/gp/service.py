@@ -31,11 +31,16 @@ class Account:
         return cls(None, "normal", levels, {s: xp_for_level(lv) for s, lv in levels.items()}, None, None)
 
 
-def load_account(rsn: str | None, mode: str = "normal", overrides: dict[str, int] | None = None) -> Account:
+def load_account(
+    rsn: str | None,
+    mode: str = "normal",
+    overrides: dict[str, int] | None = None,
+    con: duckdb.DuckDBPyConnection | None = None,
+) -> Account:
     if not rsn:
         acc = Account.fresh()
     else:
-        result = pipeline.player(rsn, mode)
+        result = pipeline.player(rsn, mode, con=con)
         if result is None:
             raise LookupError(f"{rsn!r} is not on the {mode} hiscores")
         stats, url, fetched_at = result

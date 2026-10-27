@@ -15,7 +15,7 @@ from gp.ingest import sources as src
 from gp.normalize.activities import parse_money_method, parse_recipe
 from gp.normalize.hiscores import parse_hiscores
 from gp.normalize.items import equip_requirements
-from gp.normalize.quests import parse_requirements, parse_rewards
+from gp.normalize.quests import SKILLS, parse_requirements, parse_rewards
 from gp.store import DDL, REBUILT, connect
 
 log = logging.getLogger(__name__)
@@ -353,6 +353,43 @@ def ingest_prices(client: Client, con: duckdb.DuckDBPyConnection) -> dict:
     return {"prices": _insert(con, "prices", rows), "priced": sum(r["high"] is not None for r in rows)}
 
 
+# UI icon -> wiki file name (all checked to exist on the wiki, 2026-10-27)
+ICON_FILES = {skill: f"{skill} icon.png" for skill in SKILLS} | {
+    "Combat": "Combat icon.png",
+    "Quest points": "Quest point icon.png",
+    "Skills": "Skills icon.png",
+    "Stats": "Stats icon.png",
+    "Worn equipment": "Worn Equipment.png",
+    "Equipment stats": "Equipment Stats.png",
+    "Quest list": "Quest List tab icon.png",
+    "Collection log": "Collection log.png",
+    "Account": "Account Management.png",
+    "Coins": "Coins 10000.png",
+}
+
+
+def ingest_icons(client: Client, con: duckdb.DuckDBPyConnection) -> dict:
+    urls = src.wiki_file_urls(client, sorted(set(ICON_FILES.values())))
+    rows = []
+    for name, file in ICON_FILES.items():
+        if file not in urls:
+            log.warning("icon %s (%s) not found on the wiki", name, file)
+            continue
+        image_url, file_page = urls[file]
+        resp = src.wiki_image(client, image_url)
+        rows.append(
+            {
+                "name": name,
+                "wiki_file": file,
+                "mime": "image/png",
+                "data": resp.content(),
+                "source_url": file_page,
+                "fetched_at": resp.fetched_at,
+            }
+        )
+    return {"icons": _insert(con, "icons", rows), "missing": len(ICON_FILES) - len(rows)}
+
+
 def run(client: Client | None = None, with_item_pages: bool = True, progress: Callable[[str], None] = print) -> dict:
     client = client or Client()
     con = connect()
@@ -369,6 +406,7 @@ def run(client: Client | None = None, with_item_pages: bool = True, progress: Ca
             ("prices", lambda: ingest_prices(client, con)),
             ("training recipes", lambda: ingest_recipes(client, con)),
             ("money-making methods", lambda: ingest_money_methods(client, con)),
+            ("icons", lambda: ingest_icons(client, con)),
         ]:
             progress(f"ingesting {name}...")
             report[name] = step()
@@ -376,14 +414,17 @@ def run(client: Client | None = None, with_item_pages: bool = True, progress: Ca
     return report
 
 
-def player(rsn: str, mode: str, client: Client | None = None) -> tuple[list, str, datetime] | None:
+def player(
+    rsn: str, mode: str, client: Client | None = None, con: duckdb.DuckDBPyConnection | None = None
+) -> tuple[list, str, datetime] | None:
     client = client or Client()
     resp = src.hiscores(client, rsn, mode)
     if resp.status == 404:
         return None
     stats = parse_hiscores(resp.json())
-    con = connect()
-    with con:
+    own = con is None
+    con = con or connect()
+    if not resp.from_cache:  # one snapshot per fetch, not per page view
         _insert(
             con,
             "player_snapshots",
@@ -401,7 +442,8 @@ def player(rsn: str, mode: str, client: Client | None = None) -> tuple[list, str
                 for s in stats
             ],
         )
-    con.close()
+    if own:
+        con.close()
     return stats, resp.url, resp.fetched_at
 
 

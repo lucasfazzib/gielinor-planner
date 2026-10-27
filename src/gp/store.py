@@ -58,6 +58,10 @@ create table if not exists money_methods (
     outputs struct(item varchar, qty double, per_hour boolean)[],
     wiki_value_per_hour double, source_url varchar, fetched_at timestamptz
 );
+create table if not exists icons (
+    -- small wiki images for the UI (skill and interface icons), served from the store so the UI works offline
+    name varchar primary key, wiki_file varchar, mime varchar, data blob, source_url varchar, fetched_at timestamptz
+);
 create table if not exists player_snapshots (
     rsn varchar, mode varchar, skill varchar, level integer, xp bigint, rank integer,
     source_url varchar, fetched_at timestamptz
@@ -74,6 +78,7 @@ REBUILT = [
     "prices",
     "recipes",
     "money_methods",
+    "icons",
 ]
 
 

@@ -97,6 +97,36 @@ def wikitexts(client: Client, titles: list[str], ttl: float = WIKI_TTL) -> dict[
     return out
 
 
+# ---------- OSRS Wiki: images (icons for the UI) ----------
+def wiki_file_urls(client: Client, files: list[str], ttl: float = WIKI_TTL) -> dict[str, tuple[str, str]]:
+    """{file name: (image url, file page url)} via imageinfo - 50 files per request. Missing files are left out."""
+    out: dict[str, tuple[str, str]] = {}
+    for i in range(0, len(files), 50):
+        chunk = sorted(files[i : i + 50])
+        resp = client.get(
+            "wiki_files",
+            WIKI_API,
+            {
+                "action": "query",
+                "prop": "imageinfo",
+                "iiprop": "url",
+                "titles": "|".join(f"File:{f}" for f in chunk),
+                "format": "json",
+                "formatversion": "2",
+            },
+            ttl=ttl,
+        )
+        for page in resp.json()["query"]["pages"]:
+            info = page.get("imageinfo")
+            if not page.get("missing") and info:
+                out[page["title"].removeprefix("File:")] = (info[0]["url"], info[0]["descriptionurl"])
+    return out
+
+
+def wiki_image(client: Client, url: str, ttl: float = 30 * DAY) -> Cached:
+    return client.get("wiki_images", url, ttl=ttl, binary=True)
+
+
 # ---------- Real-time prices API ----------
 def price_mapping(client: Client) -> Cached:
     return client.get("prices", f"{PRICES}/mapping", ttl=DAY)

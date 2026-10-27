@@ -1,6 +1,7 @@
 """HTTP with a disk cache that doubles as the raw layer.
 
-Every response is stored as JSON: {"url", "fetched_at", "status", "body"} under data/raw/<source>/.
+Every response is stored as JSON: {"url", "fetched_at", "status", "body"} under data/raw/<source>/
+(binary bodies such as icons are base64-encoded).
 - Freshness is per call (ttl): wiki data for days, prices for minutes, hiscores for minutes.
 - Offline mode (GP_OFFLINE=1 or offline=True): never touches the network; serves the last cached copy.
 - Polite: descriptive User-Agent, minimum interval per host, retries 429/5xx with backoff (Retry-After honored).
@@ -8,6 +9,7 @@ Every response is stored as JSON: {"url", "fetched_at", "status", "body"} under 
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import os
@@ -37,6 +39,10 @@ class Cached:
     def json(self):
         return json.loads(self.body)
 
+    def content(self) -> bytes:
+        """Binary responses (images) are cached base64-encoded in the same JSON envelope."""
+        return base64.b64decode(self.body)
+
 
 class Client:
     def __init__(
@@ -64,7 +70,14 @@ class Client:
         return self.raw_dir / source / f"{hashlib.sha256(url.encode()).hexdigest()[:24]}.json"
 
     def get(
-        self, source: str, url: str, params: dict | None = None, ttl: float = 3600, allow_404: bool = False
+        self,
+        source: str,
+        url: str,
+        params: dict | None = None,
+        *,
+        ttl: float = 3600,
+        allow_404: bool = False,
+        binary: bool = False,
     ) -> Cached:
         full = self.build_url(url, params)
         path = self.path_for(source, full)
@@ -81,6 +94,7 @@ class Client:
         if response.status_code >= 400 and not (allow_404 and response.status_code == 404):
             response.raise_for_status()
         fetched_at = datetime.now(UTC)
+        body = base64.b64encode(response.content).decode() if binary else response.text
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".tmp")
         tmp.write_text(
@@ -89,12 +103,12 @@ class Client:
                     "url": full,
                     "fetched_at": fetched_at.isoformat(),
                     "status": response.status_code,
-                    "body": response.text,
+                    "body": body,
                 }
             )
         )
         tmp.replace(path)
-        return Cached(full, fetched_at, response.status_code, response.text, from_cache=False)
+        return Cached(full, fetched_at, response.status_code, body, from_cache=False)
 
     def _fetch(self, url: str, retries: int = 4) -> httpx.Response:
         host = urlsplit(url).netloc
