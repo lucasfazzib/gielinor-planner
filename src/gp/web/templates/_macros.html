@@ -1,0 +1,15 @@
+{% macro icon(name, size=18) -%}
+{%- if name in icons -%}<img class="ic" src="/icon/{{ name | urlencode }}.png" alt="" width="{{ size }}" height="{{ size }}" loading="lazy">{%- endif -%}
+{%- endmacro %}
+
+{% macro wiki(url, label="wiki") -%}
+{%- if url %}<a class="src" href="{{ url }}" target="_blank" rel="noopener noreferrer" title="{{ url }}">{{ label }}&#8599;</a>{% endif -%}
+{%- endmacro %}
+
+{% macro status(s) -%}
+<span class="st st-{{ s }}">{{ STATUS_LABEL.get(s, s) }}</span>
+{%- endmacro %}
+
+{% macro skill(name) -%}
+{{ icon(name, 15) }} {{ name }}
+{%- endmacro %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}No data yet{% endblock %}
+{% block side %}<div class="ptitle">Account</div><p class="note">Available after the first ingest.</p>{% endblock %}
+{% block main %}
+<div class="empty-state">
+  <h1 class="page">No data yet</h1>
+  <section class="scroll">
+    <h2>First ingest</h2>
+    <div class="body">
+      <p>The planner works from a local snapshot of the wiki and the GE. Download it once (about 3 minutes,
+        1 request per second to the wiki), then reload this page:</p>
+      <pre>uv run gp ingest</pre>
+      <p>After that everything works offline except the hiscores lookup.</p>
+    </div>
+  </section>
+</div>
+{% endblock %}

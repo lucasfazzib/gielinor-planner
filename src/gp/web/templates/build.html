@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, wiki with context %}
+{% block title %}Build{% endblock %}
+{% block main %}
+{% if p.build %}
+<h1 class="page">{{ p.build.names[0] }} <span class="sub">· {{ p.build.summary }}</span></h1>
+<section class="scroll">
+  <h2>{{ icon("Stats", 16) }} Variants on the wiki <span class="sub">{{ p.build.wiki_build or "none" }}</span></h2>
+  <table class="t">
+    <thead><tr>
+      <th>Variant</th><th class="n">Combat (wiki)</th><th class="n">Formula</th>
+      {% for s in ["Attack", "Strength", "Defence", "Prayer", "Ranged", "Magic", "Hitpoints"] %}<th class="n" title="{{ s }}">{{ icon(s, 14) or s[:3] }}</th>{% endfor %}
+      <th>Style</th><th>Members</th>
+    </tr></thead>
+    <tbody>
+    {% for v in variants %}
+      <tr>
+        <td>{{ v.name }}</td>
+        <td class="n">{{ (v.combat_levels or []) | join("-") or "–" }}</td>
+        <td class="n {{ 'neg' if v.combat_matches_wiki is false }}" {% if v.combat_matches_wiki is false %}title="the wiki's stated combat level disagrees with the official formula"{% endif %}>{{ v.computed_combat }}</td>
+        {% for k in ["attack", "strength", "defence", "prayer", "ranged", "magic", "hitpoints"] %}<td class="n">{{ v[k] if v[k] is not none else "–" }}</td>{% endfor %}
+        <td class="dim">{{ (v.types or []) | join(", ") }}</td>
+        <td>{{ "yes" if v.members else "no" if v.members is false else "?" }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="12" class="dim">The wiki lists no variants for this build.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p>"Formula" is the combat level computed with the official formula ({{ wiki(combat_source, "Combat level") }}); red = the wiki's own number disagrees.</p>
+</section>
+
+<section class="scroll">
+  <h2>{{ icon("Worn equipment", 16) }} Key unlocks and what they require</h2>
+  <table class="t">
+    <thead><tr><th>Item</th><th>Requires</th><th>Wiki sentence</th><th></th></tr></thead>
+    <tbody>
+    {% for u in unlocks %}
+      <tr>
+        <td class="w">{{ u.item }}</td>
+        <td>{% for s, lv in u.skills %}{{ lv }} {{ s }}{{ ", " if not loop.last or u.quests }}{% endfor %}{{ u.quests | join(", ") }}{% if not u.skills and not u.quests %}<span class="dim">no requirement sentence found</span>{% endif %}</td>
+        <td class="dim">{{ (u.evidence or "")[:160] }}</td>
+        <td>{{ wiki(u.source_url) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="dim">No key unlocks listed for this build.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

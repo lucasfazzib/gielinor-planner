@@ -12,6 +12,10 @@ dependencies = [
     "beautifulsoup4==4.15.0",
     "pyyaml==6.0.3",
     "pytz==2025.2",  # DuckDB needs it to return timestamptz values to Python
+    "fastapi==0.162.0",  # local UI (phase 4): server-rendered pages, no JS framework
+    "jinja2==3.1.6",
+    "uvicorn==0.54.0",
+    "python-multipart==0.0.32",  # form posts (marking quests done)
 ]
 
 [project.scripts]
@@ -38,7 +42,7 @@ ignore = ["PLR2004", "PLR0913"]
 
 [tool.ruff.lint.flake8-bugbear]
 # typer declares CLI options as default values - that is the library's API, not a mutable-default bug
-extend-immutable-calls = ["typer.Option", "typer.Argument"]
+extend-immutable-calls = ["typer.Option", "typer.Argument", "fastapi.Depends"]
 
 [tool.ruff.lint.per-file-ignores]
 "src/gp/cli.py" = ["PLR0917"]  # CLI commands mirror their flags one-to-one

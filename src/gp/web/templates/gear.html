@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, wiki with context %}
+{% block title %}Gear{% endblock %}
+{% block main %}
+<h1 class="page">Best melee set for a budget {% if p.ok %}<span class="sub">· {{ p.build.names[0] }}</span>{% endif %}</h1>
+{% if p.ok %}
+<form class="filter" method="get" action="/gear">
+  {% for k, v in [("rsn", ctx.rsn), ("mode", ctx.mode), ("build", ctx.build_id), ("set", ctx.sets)] %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  {% if ctx.f2p %}<input type="hidden" name="f2p" value="1">{% endif %}
+  <label>Budget <input type="text" name="budget" value="{{ budget_text }}" style="width:90px"></label>
+  <label><input type="checkbox" name="unverified" value="1" {% if allow_unverified %}checked{% endif %}> include items whose requirement is unknown</label>
+  <button type="submit">Optimise</button>
+</form>
+{% if error %}<div class="alert">{{ error }}</div>{% else %}
+<div class="gear-cols">
+  <section class="scroll">
+    <h2>{{ icon("Worn equipment", 16) }} Worn equipment</h2>
+    <div class="worn">
+      {% for slot, col, row in layout %}
+        {% set c = worn.get(slot) %}
+        <div class="slot {{ 'empty' if not c }}" style="grid-column:{{ col }};grid-row:{{ row }}">
+          <span class="sn">{{ "2h" if slot == "weapon" and two_handed else slot }}</span>
+          {% if c %}
+            <span class="it">{{ c.name }}</span>
+            <span class="bn">+{{ c.strength }} str · {{ c.price | gp }}</span>
+          {% elif slot == "shield" and two_handed %}<span class="bn">(two-handed)</span>
+          {% elif slot == "ammo" %}<span class="bn">not optimised</span>
+          {% else %}<span class="bn">–</span>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="scroll">
+    <h2>{{ icon("Equipment stats", 16) }} The set <span class="sub">{{ best.price | gp }} of {{ budget | gp }}</span></h2>
+    <table class="t">
+      <thead><tr><th>Slot</th><th>Item</th><th class="n">Price</th><th class="n">Str</th><th class="n">Best atk</th><th>Requirement</th><th></th></tr></thead>
+      <tbody>
+      {% for c in best.items %}
+        <tr>
+          <td class="dim">{{ c.slot }}</td>
+          <td>{{ c.name }}</td>
+          <td class="n">{{ c.price | gp }}</td>
+          <td class="n">+{{ c.strength }}</td>
+          <td class="n">+{{ c.attack }}</td>
+          <td>{% if c.verified %}read from the wiki{% else %}<span class="st st-unknown">unknown</span>{% endif %}</td>
+          <td>{{ wiki(c.source_url) }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7" class="dim">Nothing fits this budget and these levels.</td></tr>
+      {% endfor %}
+      <tr><td class="total"></td><td class="total">Total</td><td class="n total">{{ best.price | gp }}</td><td class="n total">+{{ best.strength }}</td><td class="n total">+{{ best.attack }}</td><td class="total" colspan="2"></td></tr>
+      </tbody>
+    </table>
+    <p>Maximises the melee strength bonus - the gear term of the max-hit formula,
+      0.5 + Effective Strength × (Strength Bonus + 64) / 640 ({{ wiki(source, "Maximum melee hit") }}) - then accuracy.
+      One item per slot, a two-handed weapon takes both hands. Price = instant-buy on the GE now.
+      Items must fit your levels, the build's limits and the quests you marked done.</p>
+    <p>Out of the running ({{ candidates }} items considered):
+      {% for reason, n in excluded %}{{ n | num }} {{ reason }}{{ "; " if not loop.last }}{% endfor %}.</p>
+  </section>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

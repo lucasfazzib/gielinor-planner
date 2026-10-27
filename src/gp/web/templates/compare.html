@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon with context %}
+{% block title %}Compare{% endblock %}
+{% block main %}
+<h1 class="page">Compare builds</h1>
+{% if p.ok %}
+<form class="filter" method="get" action="/compare" style="flex-wrap:wrap">
+  {% for k, v in [("rsn", ctx.rsn), ("mode", ctx.mode), ("build", ctx.build_id), ("set", ctx.sets)] %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  {% for b in p.builds %}
+    <label><input type="checkbox" name="c" value="{{ b.id }}" {% if b.id in chosen %}checked{% endif %}> {{ b.names[0] }}</label>
+  {% endfor %}
+  <button type="submit">Compare</button>
+</form>
+<section class="scroll">
+  <h2>{{ icon("Equipment stats", 16) }} Side by side <span class="sub">facts and arithmetic only</span></h2>
+  <table class="t">
+    <thead><tr><th></th>{% for s in summaries %}<th>{{ s.build.names[0] }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      <tr><td class="dim">Members only</td>{% for s in summaries %}<td>{{ "yes" if s.members_only else "no" }}</td>{% endfor %}</tr>
+      <tr><td class="dim">Limits</td>{% for s in summaries %}<td>{% for k, v in s.build.limits.items() %}{{ k }} ≤ {{ v.max }}{{ ", " if not loop.last }}{% else %}–{% endfor %}</td>{% endfor %}</tr>
+      <tr><td class="dim">Combat (wiki variants)</td>{% for s in summaries %}<td>{{ "%d–%d" % s.combat_range if s.combat_range else "–" }}</td>{% endfor %}</tr>
+      <tr><td class="dim">Play style (wiki)</td>{% for s in summaries %}<td>{{ s.types | join(", ") or "–" }}</td>{% endfor %}</tr>
+      <tr><td class="dim">Combat XP from fresh, lowest variant</td>{% for s in summaries %}<td class="n">{{ s.xp_to_lowest_variant | num if s.xp_to_lowest_variant else "–" }}</td>{% endfor %}</tr>
+      <tr><td class="dim">Combat XP from fresh, highest variant</td>{% for s in summaries %}<td class="n">{{ s.xp_to_highest_variant | num if s.xp_to_highest_variant else "–" }}</td>{% endfor %}</tr>
+      <tr><td class="dim">Quests blocked / at risk</td>{% for s in summaries %}<td class="n"><span class="st-blocked">{{ s.quests_blocked }}</span> / <span class="st-risk">{{ s.quests_at_risk }}</span></td>{% endfor %}</tr>
+      <tr><td class="dim">Quests safe or choosable</td>{% for s in summaries %}<td class="n">{{ s.quests_safe }}</td>{% endfor %}</tr>
+      <tr><td class="dim">Key unlocks</td>{% for s in summaries %}<td>{% for item, req, price in s.unlocks %}{{ item }} <span class="dim">({{ req }}, {{ price | gp }})</span>{% if not loop.last %}<br>{% endif %}{% else %}–{% endfor %}</td>{% endfor %}</tr>
+    </tbody>
+  </table>
+  <p>No time estimates: combat XP/h depends on gear, monster and method and is not in a structured source.
+    XP = combat-skill XP to reach the wiki's variant levels from a fresh account. Quest counts are for members, from a fresh account.</p>
+</section>
+{% endif %}
+{% endblock %}

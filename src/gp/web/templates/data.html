@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, wiki with context %}
+{% block title %}Data{% endblock %}
+{% block main %}
+<h1 class="page">Data <span class="sub">· what the planner knows, how fresh it is, and what it could not read</span></h1>
+<div class="cols">
+  <section class="scroll">
+    <h2>{{ icon("Collection log", 16) }} Store (DuckDB)</h2>
+    <table class="t">
+      <thead><tr><th>Table</th><th class="n">Rows</th><th>Fetched (oldest → newest, UTC)</th></tr></thead>
+      <tbody>
+      {% for t in tables %}
+        <tr>
+          <td><code>{{ t.name }}</code></td>
+          <td class="n">{{ t.rows | num }}</td>
+          <td class="dim">{% if t.oldest %}{{ t.oldest.strftime("%Y-%m-%d %H:%M") }} → {{ t.newest.strftime("%Y-%m-%d %H:%M") }}{% else %}–{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p>Every game row carries <code>source_url</code> and <code>fetched_at</code> (wiki rows also the page revision).
+      Sources and their rules: <code>SOURCES.md</code>.</p>
+  </section>
+
+  <section class="scroll">
+    <h2>{{ icon("Worn equipment", 16) }} Equipment requirements</h2>
+    <table class="t">
+      <tbody>
+        <tr><td>Tradeable equipable pages</td><td class="n">{{ equip.total | num }}</td></tr>
+        <tr><td>Requirement read from the wiki</td><td class="n">{{ equip.found | num }}</td></tr>
+        <tr><td>Wiki says: no requirement</td><td class="n">{{ equip.none_stated | num }}</td></tr>
+        <tr><td>Unknown (phrased another way, or not stated)</td><td class="n">{{ (equip.total - equip.found - equip.none_stated) | num }}</td></tr>
+      </tbody>
+    </table>
+    <p>Unknown items are left out of gear suggestions unless you tick "include items whose requirement is unknown".</p>
+  </section>
+</div>
+
+<section class="scroll">
+  <h2>{{ icon("Quest points", 16) }} Quest XP reward lines not classified <span class="sub">{{ unparsed | length }}</span></h2>
+  <table class="t">
+    <thead><tr><th>Quest</th><th>Reward line as written on the wiki</th><th></th></tr></thead>
+    <tbody>
+    {% for quest, raw, url in unparsed %}
+      <tr><td class="w">{{ quest }}</td><td><code>{{ raw[:180] }}</code></td><td>{{ wiki(url) }}</td></tr>
+    {% else %}
+      <tr><td colspan="3" class="dim">None.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p>The XP guard treats these quests as "unknown" for any skill the line might mention - review them instead of trusting silence.</p>
+</section>
+{% endblock %}

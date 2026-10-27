@@ -1,0 +1,74 @@
+{% from "_macros.html" import icon with context %}
+<div class="ptitle">Account</div>
+<form class="acct" method="get" action="/{{ tab }}">
+  <label>RuneScape name <span class="dim">(empty = fresh account)</span>
+    <input type="text" name="rsn" value="{{ ctx.rsn }}" maxlength="12" autocomplete="off" spellcheck="false">
+  </label>
+  <div class="row2">
+    <label>Mode
+      <select name="mode">
+        {% for m in MODES %}<option value="{{ m }}" {% if m == ctx.mode %}selected{% endif %}>{{ m }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Build
+      <select name="build">
+        {% for b in p.builds %}<option value="{{ b.id }}" {% if b.id == ctx.build_id %}selected{% endif %}>{{ b.names[0] }}</option>{% endfor %}
+      </select>
+    </label>
+  </div>
+  <label>Override levels <span class="dim">(e.g. Defence=1, Prayer=43)</span>
+    <input type="text" name="set" value="{{ ctx.sets }}" autocomplete="off" spellcheck="false">
+  </label>
+  <div class="row2">
+    <label class="check"><input type="checkbox" name="f2p" value="1" {% if ctx.f2p %}checked{% endif %}> Free-to-play</label>
+    <div style="text-align:right"><button type="submit">Load</button></div>
+  </div>
+</form>
+
+{% for e in p.errors %}<div class="alert">{{ e }}</div>{% endfor %}
+{% for b in p.broken %}<div class="alert">Already breaks the build: {{ b }}</div>{% endfor %}
+
+{% if p.account %}
+  <div class="ptitle">
+    {{ p.account.rsn or "Fresh account" }}{% if p.account.rsn %} <span class="dim" style="text-transform:none">({{ p.account.mode }})</span>{% endif %}
+  </div>
+  <div class="skills">
+    {% for c in p.grid %}
+      <div class="skill {{ 'over' if c.over }}" title="{{ c.skill }}{% if c.limit is not none %} - build limit {{ c.limit }}{% endif %}{% if p.account.xp.get(c.skill) is not none %} - {{ p.account.xp[c.skill] | num }} XP{% endif %}">
+        {% if c.skill in icons %}{{ icon(c.skill, 20) }}{% else %}<span class="dim">{{ c.skill[:3] }}</span>{% endif %}
+        <span class="lv {{ 'unk' if c.level is none }}">{{ c.level if c.level is not none else "–" }}</span>
+        {% if c.limit is not none %}<span class="cap">≤{{ c.limit }}</span>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+  <div class="totals">
+    <span>{{ icon("Combat", 14) }} Combat <b>{{ p.combat.level }}</b> <span class="dim">({{ "%.2f" | format(p.combat.exact | float) }}, {{ p.combat.style }})</span></span>
+    <span>Total <b>{{ p.total_level if p.total_level is not none else "?" }}</b></span>
+  </div>
+  {% if p.account.rsn %}
+    <p class="note">Hiscores, fetched {{ p.account.fetched_at.strftime("%Y-%m-%d %H:%M") }} UTC.
+      {% if p.total_level is none %}"–" = unranked, level unknown.{% endif %}</p>
+  {% else %}
+    <p class="note">Every skill at 1, Hitpoints at 10 - how every account starts.</p>
+  {% endif %}
+
+  <div class="ptitle">Levels for +1 combat</div>
+  <table class="kv">
+    {% for s, n in p.next_combat.items() %}
+      <tr><td>{{ icon(s, 13) }} {{ s }}</td><td>{{ "+%d" % n if n else "–" }}</td></tr>
+    {% endfor %}
+  </table>
+{% endif %}
+
+{% if p.build %}
+  <div class="ptitle">{{ p.build.names[0] }}</div>
+  {% if p.build.limits %}
+    {% for s, lim in p.build.limits.items() %}
+      <div class="limit">{{ icon(s, 13) }} {{ s }} ≤ {{ lim.max }} <span class="dim">({{ lim.kind }})</span><q>{{ lim.why }}</q></div>
+    {% endfor %}
+  {% else %}
+    <p class="note">No stat limits.</p>
+  {% endif %}
+  <p class="note"><a href="{{ p.build.source }}" target="_blank" rel="noopener noreferrer">{{ p.build.source.split("/w/")[-1] | replace("_", " ") }} on the wiki&#8599;</a></p>
+{% endif %}
+<p class="note">{{ p.done | length }} quests marked done.</p>

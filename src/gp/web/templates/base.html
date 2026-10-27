@@ -1,0 +1,45 @@
+{% from "_macros.html" import icon with context %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ tab | capitalize }}{% endblock %} · gielinor-planner</title>
+<link rel="stylesheet" href="/static/panel.css">
+{% if "Skills" in icons %}<link rel="icon" href="/icon/Skills.png">{% endif %}
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <b>gielinor-planner</b>
+    {% if fresh.wiki %}<span>wiki snapshot {{ fresh.wiki.strftime("%Y-%m-%d") }}</span>{% endif %}
+    {% if fresh.prices %}
+      <span class="{{ 'stale' if fresh.prices_age_min > 60 else '' }}">GE prices {{ fresh.prices_age_min }} min old</span>
+    {% endif %}
+    <span>refresh: <code>uv run gp ingest</code></span>
+  </div>
+
+  <main class="view">
+    {% block main %}{% endblock %}
+  </main>
+
+  <aside class="side" aria-label="Account">
+    {% block side %}{% include "_panel.html" %}{% endblock %}
+  </aside>
+
+  <nav class="tabs" aria-label="Views">
+    {% for key, label, ic in TABS %}
+      <a href="/{{ key }}?{{ ctx.query() }}" title="{{ label }}" {% if tab == key %}aria-current="page"{% endif %}>
+        {% if ic in icons %}{{ icon(ic, 22) }}<span class="txt">{{ label }}</span>{% else %}{{ label[:4] }}{% endif %}
+      </a>
+    {% endfor %}
+  </nav>
+
+  <footer class="credits">
+    Unofficial fan project. Game data and images © Jagex. Wiki content and icons from the
+    <a href="https://oldschool.runescape.wiki" target="_blank" rel="noopener noreferrer">OSRS Wiki</a> (CC BY-NC-SA 3.0);
+    prices from the OSRS Wiki real-time prices API; levels from the official hiscores.
+    Every number links to its source.
+  </footer>
+</div>
+</body>
+</html>

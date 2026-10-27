@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, wiki, status, skill with context %}
+{% block title %}Now{% endblock %}
+{% block main %}
+{% if not p.ok %}
+  <h1 class="page">What to do now</h1>
+  <div class="scroll"><p>Fix the account settings in the panel to see the plan.</p></div>
+{% else %}
+<h1 class="page">What to do now <span class="sub">· {{ p.build.names[0] }} · {{ "F2P" if ctx.f2p else "members" }}</span></h1>
+
+<section class="scroll">
+  <h2>{{ icon("Quest points", 16) }} Quests you can do now <span class="sub">{{ plan.available | length }} available</span></h2>
+  <table class="t">
+    <thead><tr><th>Quest</th><th>Guard</th><th class="n">QP</th><th class="n">Useful XP</th><th>Unlocks gear</th><th>Notes</th><th></th></tr></thead>
+    <tbody>
+    {% for o in plan.available[:20] %}
+      <tr>
+        <td class="w">{{ o.quest }}</td>
+        <td>{{ status(o.status) }}</td>
+        <td class="n">{{ o.quest_points }}</td>
+        <td class="n">{{ o.useful_xp | num }}</td>
+        <td>{{ o.unlocks[:3] | join(", ") or "–" }}{% if o.unlocks | length > 3 %} <span class="dim">+{{ o.unlocks | length - 3 }}</span>{% endif %}</td>
+        <td class="dim">{{ o.notes | join("; ") or "" }}</td>
+        <td>{{ wiki(o.source_url) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="dim">Nothing available and safe right now - see the prerequisites below.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p>Ranked by gear unlocked, then XP in skills this build does not lock, then quest points.
+    {{ plan.waiting_on_prerequisites | length }} more are safe but wait on prerequisites;
+    {{ plan.missing_levels | length }} need higher levels. Mark finished quests on the
+    <a href="/quests?{{ ctx.query() }}">Quests</a> tab.</p>
+</section>
+
+<div class="cols">
+  <section class="scroll">
+    <h2>{{ icon("Stats", 16) }} Next milestones <span class="sub">within the build</span></h2>
+    <table class="t">
+      <thead><tr><th>Skill</th><th class="n">Level</th><th class="n">XP needed</th><th>Unlocks</th></tr></thead>
+      <tbody>
+      {% for m in milestones %}
+        <tr>
+          <td class="w">{{ skill(m.skill) }}</td>
+          <td class="n">{{ m.level }}</td>
+          <td class="n">{{ m.xp_needed | num }}</td>
+          <td>{% if m.items %}{{ m.items[:4] | join(", ") }}{% if m.items | length > 4 %} <span class="dim">+{{ m.items | length - 4 }}</span>{% endif %}{% endif %}
+              {% if m.quests %}{% if m.items %}<br>{% endif %}<span class="dim">quests:</span> {{ m.quests[:3] | join(", ") }}{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="4" class="dim">No gear or quest unlocks ahead within the limits.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p>Next levels that unlock tradeable gear or quests, capped by the build's limits.</p>
+  </section>
+
+  <section class="scroll">
+    <h2>{{ icon("Coins", 16) }} Money makers you qualify for</h2>
+    <table class="t">
+      <thead><tr><th>Activity</th><th>Category</th><th class="n">Profit/h now</th><th class="n">Wiki value</th><th></th></tr></thead>
+      <tbody>
+      {% for m in money %}
+        <tr>
+          <td>{{ m.activity | wikiname }}</td>
+          <td class="dim">{{ m.category or "–" }}</td>
+          <td class="n {{ 'neg' if m.profit_per_hour is not none and m.profit_per_hour < 0 }}">
+            {% if m.profit_per_hour is not none %}{{ m.profit_per_hour | gp }}{% else %}<span class="dim" title="no reliable price: {{ m.unpriced | join(', ') }}">?</span>{% endif %}
+          </td>
+          <td class="n dim">{{ m.wiki_value_per_hour | gp }}</td>
+          <td>{{ wiki(m.source_url) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p>Profit/h recomputed with live GE prices (inputs bought instantly, outputs sold instantly; illiquid prices dropped).
+      "?" = an item has no reliable price - hover for which.
+      {% if p.build.limits %}Combat methods train whatever style you use - keep it off {{ p.build.limits | join(", ") }}.{% endif %}</p>
+  </section>
+</div>
+
+<section class="scroll">
+  <h2>{{ icon("Skills", 16) }} Training at your levels <span class="sub">buyable materials only</span></h2>
+  <table class="t">
+    <thead><tr><th>Skill</th><th>Action</th><th class="n">Lvl</th><th class="n">XP/action</th><th class="n">Ticks</th><th class="n">XP/h ceiling</th><th class="n">gp/XP</th><th></th></tr></thead>
+    <tbody>
+    {% for t in training %}
+      <tr>
+        <td class="w">{{ skill(t.skill) }}</td>
+        <td>{{ t.action }}</td>
+        <td class="n">{{ t.level }}</td>
+        <td class="n">{{ "%g" | format(t.xp) }}</td>
+        <td class="n">{{ "%g" | format(t.ticks) }}</td>
+        <td class="n dim">{{ "{:,.0f}".format(t.xp_per_hour_ceiling) }}</td>
+        <td class="n {{ 'neg' if t.gp_per_xp < 0 else 'pos' }}">{{ "%+.1f" | format(t.gp_per_xp) }}{% if not t.output_sold %} <span class="dim" title="the product has no reliable sell price; only the materials are counted">*</span>{% endif %}</td>
+        <td>{{ wiki(t.source_url) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p>Ranked by XP per action. XP/h ceiling = XP × 6,000 ticks/h ÷ ticks (1 tick = 0.6 s, <a href="https://oldschool.runescape.wiki/w/Game_tick" target="_blank" rel="noopener noreferrer">Game tick</a>) -
+    banking and walking excluded, real rates are lower, so it is never used to rank. gp/XP: buy materials, sell the product, at current prices.
+    * = product unsold.</p>
+</section>
+{% endif %}
+{% endblock %}

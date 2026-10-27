@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, wiki, status with context %}
+{% block title %}Quests{% endblock %}
+{% block main %}
+<h1 class="page">Quests {% if p.ok %}<span class="sub">· {{ qp_done }} / {{ qp_total }} QP marked done</span>{% endif %}</h1>
+{% if p.ok %}
+<form method="post" action="/quests/done">
+  <input type="hidden" name="back" value="{{ ctx.query() }}">
+  <div class="filter">
+    <input type="text" id="q" placeholder="Filter quests…" aria-label="Filter quests" autocomplete="off">
+    <label><input type="checkbox" id="hide-done"> hide done</label>
+    <button type="submit">Save done quests</button>
+    <span id="saved" class="saved" hidden>Saved.</span>
+  </div>
+  <section class="scroll">
+    <h2>{{ icon("Quest list", 16) }} All quests <span class="sub">guard status for {{ p.build.names[0] }}</span></h2>
+    <table class="t" id="quests">
+      <thead><tr><th>Done</th><th>Quest</th><th>Members</th><th>Difficulty</th><th class="n">QP</th><th>Guard</th><th>Missing now</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr data-name="{{ r.name | lower }}" data-done="{{ 1 if r.done else 0 }}">
+          <td><input type="hidden" name="shown" value="{{ r.name }}"><input type="checkbox" name="done" value="{{ r.name }}" aria-label="{{ r.name }} done" {% if r.done %}checked{% endif %}></td>
+          <td class="w">{{ r.name }}</td>
+          <td>{{ "P2P" if r.members else "F2P" if r.members is false else "?" }}</td>
+          <td class="dim">{{ r.difficulty or "–" }}</td>
+          <td class="n">{{ r.qp }}</td>
+          <td title="{{ r.reasons | join('; ') }}">{{ status(r.status) }}</td>
+          <td class="dim">{{ (r.missing + r.waiting) | join(", ") or "" }}</td>
+          <td>{{ wiki(r.url) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p>Quest completion is not on the hiscores, so it is kept locally in <code>data/quests_done.txt</code>
+      (also <code>gp done add/remove</code>). "Missing now" = levels you do not have and prerequisites not marked done.</p>
+  </section>
+</form>
+<script>
+  // client-side filter only; the list of done quests is saved by the form above
+  (() => {
+    const q = document.getElementById("q"), hide = document.getElementById("hide-done");
+    const rows = [...document.querySelectorAll("#quests tbody tr")];
+    const apply = () => {
+      const t = q.value.trim().toLowerCase();
+      for (const r of rows) r.hidden = (t && !r.dataset.name.includes(t)) || (hide.checked && r.dataset.done === "1");
+    };
+    q.addEventListener("input", apply);
+    hide.addEventListener("change", apply);
+    if (location.hash === "#saved") document.getElementById("saved").hidden = false;
+  })();
+</script>
+{% endif %}
+{% endblock %}

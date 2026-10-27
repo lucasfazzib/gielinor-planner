@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% from "_macros.html" import icon, wiki, status with context %}
+{% block title %}XP guard{% endblock %}
+{% block main %}
+<h1 class="page">XP guard {% if p.ok %}<span class="sub">· {{ p.build.names[0] }} · {{ p.account.rsn or "fresh account" }} · {{ "F2P" if ctx.f2p else "members" }}</span>{% endif %}</h1>
+{% if p.ok %}
+<div class="chips">
+  {% for f in filters %}
+    <a class="chip" href="/guard?{{ ctx.query(show=f) }}" {% if f == show %}aria-current="true"{% endif %}>{{ f }}</a>
+  {% endfor %}
+  <span style="width:10px"></span>
+  {% for s, n in counts.items() %}<span class="st st-{{ s }}" style="background:var(--parch-100)">{{ STATUS_LABEL[s] }} <b>{{ n }}</b></span>{% endfor %}
+</div>
+<section class="scroll">
+  <h2>{{ icon("Combat", 16) }} Quests that touch the build's limits <span class="sub">{{ rows | length }} shown</span></h2>
+  <table class="t">
+    <thead><tr><th>Status</th><th>Quest</th><th>Why</th><th></th></tr></thead>
+    <tbody>
+    {% for v in rows %}
+      <tr>
+        <td>{{ status(v.status) }}</td>
+        <td class="w">{{ v.quest }}</td>
+        <td>{{ v.reasons | join("; ") or "–" }}</td>
+        <td>{{ wiki(urls.get(v.quest)) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="dim">Nothing in this filter.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p>Fixed XP is exact. Lamps and tomes count as safe only if you pick another skill ("safe if you choose");
+    random XP and choices between reward packages are treated as the worst case ("risk"). A quest is never safer
+    than the prerequisites it requires. Headroom = XP that keeps the skill at its limit.</p>
+</section>
+{% endif %}
+{% endblock %}

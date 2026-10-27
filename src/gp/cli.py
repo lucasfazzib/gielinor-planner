@@ -8,6 +8,8 @@ from rich.table import Table
 
 from gp import progress, service
 from gp.config import settings
+from gp.fmt import gp_short as _gp
+from gp.fmt import parse_gp as _parse_gp
 from gp.ingest import pipeline
 from gp.ingest.sources import HISCORE_BOARDS
 from gp.normalize.hiscores import levels
@@ -260,20 +262,6 @@ def _find(build_name: str):
         raise typer.Exit(1) from exc
 
 
-def _gp(value: float | None) -> str:
-    if value is None:
-        return "?"
-    sign = "-" if value < 0 else ""
-    v = abs(value)
-    return f"{sign}{v / 1e6:.2f}M" if v >= 1e6 else f"{sign}{v / 1e3:.1f}k" if v >= 1e4 else f"{sign}{v:,.0f}"
-
-
-def _parse_gp(text: str) -> int:
-    t = text.strip().lower().replace(",", "")
-    mult = {"k": 1_000, "m": 1_000_000, "b": 1_000_000_000}.get(t[-1:], 1)
-    return int(float(t[:-1] if t[-1:] in "kmb" else t) * mult)
-
-
 @app.command()
 def done(
     action: str = typer.Argument("list", help="list | add | remove"),
@@ -484,6 +472,17 @@ def quality():
         f"[bold]Equip requirements[/]: found for {found:,} of {total:,} tradeable equipable items. "
         "The rest either have no requirement (e.g. bronze) or phrase it differently - treat as unknown."
     )
+
+
+@app.command()
+def ui(port: int = typer.Option(8765, help="Port on 127.0.0.1.")):
+    """Local web UI with the same data and rules as the CLI (binds to 127.0.0.1 only)."""
+    import uvicorn  # noqa: PLC0415 - only this command needs the web stack
+
+    from gp.web.app import create_app  # noqa: PLC0415
+
+    console.print(f"gielinor-planner on [bold]http://127.0.0.1:{port}/[/]  (Ctrl+C to stop)")
+    uvicorn.run(create_app(), host="127.0.0.1", port=port, log_level="warning")
 
 
 @app.command()
